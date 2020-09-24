@@ -4,6 +4,8 @@ package org.odpi.openmetadata.viewservices.dino.server;
 
 
 
+import io.swagger.v3.oas.annotations.ExternalDocumentation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.odpi.openmetadata.viewservices.dino.api.rest.DinoPlatformOverviewResponse;
 import org.odpi.openmetadata.viewservices.dino.api.rest.DinoPlatformRequestBody;
 import org.odpi.openmetadata.viewservices.dino.api.rest.DinoResourceEndpointListResponse;
@@ -16,10 +18,6 @@ import org.odpi.openmetadata.viewservices.dino.api.rest.DinoServerRequestBody;
 import org.odpi.openmetadata.viewservices.dino.api.rest.DinoServerTypeResponse;
 import org.odpi.openmetadata.viewservices.dino.api.rest.DinoServiceListResponse;
 import org.odpi.openmetadata.viewservices.dino.api.rest.DinoStringResponse;
-import org.springframework.web.bind.annotation.*;
-
-import io.swagger.v3.oas.annotations.ExternalDocumentation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 
 
 

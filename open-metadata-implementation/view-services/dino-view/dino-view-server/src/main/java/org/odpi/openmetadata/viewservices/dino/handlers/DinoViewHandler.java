@@ -17,7 +17,6 @@ import org.odpi.openmetadata.frameworks.connectors.ffdc.InvalidParameterExceptio
 import org.odpi.openmetadata.frameworks.connectors.ffdc.PropertyServerException;
 import org.odpi.openmetadata.frameworks.connectors.ffdc.UserNotAuthorizedException;
 import org.odpi.openmetadata.platformservices.client.PlatformServicesClient;
-
 import org.odpi.openmetadata.platformservices.properties.ServerStatus;
 import org.odpi.openmetadata.repositoryservices.auditlog.OMRSAuditLogReport;
 import org.odpi.openmetadata.repositoryservices.clients.AuditLogServicesClient;

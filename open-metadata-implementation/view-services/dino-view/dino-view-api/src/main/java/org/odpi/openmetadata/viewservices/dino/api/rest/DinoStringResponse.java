@@ -6,7 +6,6 @@ package org.odpi.openmetadata.viewservices.dino.api.rest;
 
 
 import java.util.Arrays;
-import java.util.List;
 
 public class DinoStringResponse extends DinoViewOMVSAPIResponse {
 

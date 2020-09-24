@@ -3,11 +3,10 @@
 package org.odpi.openmetadata.viewservices.dino.server;
 
 import org.odpi.openmetadata.adminservices.configuration.properties.ResourceEndpointConfig;
-import org.odpi.openmetadata.commonservices.multitenant.OMVSServiceInstance;
 import org.odpi.openmetadata.adminservices.configuration.registration.ViewServiceDescription;
+import org.odpi.openmetadata.commonservices.multitenant.OMVSServiceInstance;
 import org.odpi.openmetadata.frameworks.auditlog.AuditLog;
 import org.odpi.openmetadata.viewservices.dino.handlers.DinoViewHandler;
-import org.odpi.openmetadata.viewservices.dino.api.properties.ResourceEndpoint;
 
 import java.util.List;
 

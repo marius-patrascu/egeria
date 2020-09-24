@@ -6,8 +6,6 @@ package org.odpi.openmetadata.viewservices.dino.api.properties;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import org.odpi.openmetadata.adminservices.configuration.properties.ResourceEndpointConfig;
-import org.odpi.openmetadata.adminservices.rest.ServerTypeClassificationSummary;
 
 import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.NONE;
 import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.PUBLIC_ONLY;

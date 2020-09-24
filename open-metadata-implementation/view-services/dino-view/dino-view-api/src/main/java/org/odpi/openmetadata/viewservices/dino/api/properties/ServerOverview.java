@@ -8,9 +8,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import org.odpi.openmetadata.adminservices.configuration.properties.ResourceEndpointConfig;
 import org.odpi.openmetadata.adminservices.rest.ServerTypeClassificationSummary;
-import org.odpi.openmetadata.commonservices.ffdc.rest.RegisteredOMAGService;
 import org.odpi.openmetadata.platformservices.properties.ServerStatus;
-import org.odpi.openmetadata.repositoryservices.properties.CohortDescription;
 
 import java.util.List;
 import java.util.Map;

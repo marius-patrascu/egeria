@@ -5,7 +5,6 @@
 package org.odpi.openmetadata.viewservices.dino.api.rest;
 
 
-import org.odpi.openmetadata.viewservices.dino.api.properties.PlatformOverview;
 import org.odpi.openmetadata.viewservices.dino.api.properties.ServerOverview;
 
 import java.util.Arrays;

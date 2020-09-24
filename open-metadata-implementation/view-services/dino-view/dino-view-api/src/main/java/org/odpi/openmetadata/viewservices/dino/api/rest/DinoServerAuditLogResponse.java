@@ -7,11 +7,9 @@ package org.odpi.openmetadata.viewservices.dino.api.rest;
 
 
 
-import org.odpi.openmetadata.commonservices.ffdc.rest.RegisteredOMAGService;
 import org.odpi.openmetadata.repositoryservices.auditlog.OMRSAuditLogReport;
 
 import java.util.Arrays;
-import java.util.List;
 
 public class DinoServerAuditLogResponse extends DinoViewOMVSAPIResponse {
 
