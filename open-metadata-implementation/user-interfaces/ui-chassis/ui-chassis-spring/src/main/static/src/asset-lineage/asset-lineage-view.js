@@ -411,6 +411,16 @@ class AssetLineageView extends mixinBehaviors([ItemViewBehavior], PolymerElement
         }
         return type === 'RelationalColumn' || type === 'TabularColumn' || type === 'GlossaryTerm';
     }
+
+    _displayVerticalLineageButton(item) {
+        var type = "";
+        if (item === undefined || item.type === undefined || item.type.name === undefined) {
+            return false;
+        } else {
+            type = item.type.name;
+        }
+        return type === 'RelationalColumn' || type === 'TabularColumn' || type === 'GlossaryTerm';
+    }
 }
 
 window.customElements.define('asset-lineage-view', AssetLineageView);

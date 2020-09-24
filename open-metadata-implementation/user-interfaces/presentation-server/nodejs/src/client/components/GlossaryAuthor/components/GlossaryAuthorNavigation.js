@@ -2,9 +2,10 @@
 /* Copyright Contributors to the ODPi Egeria project. */
 import React, { useState, useEffect } from "react";
 
-import Add16 from "../../../images/Egeria_add_16";
-import Delete16 from "../../../images/Egeria_delete_16";
-import Edit16 from "../../../images/Egeria_edit_16";
+import Add32 from "../../../images/Egeria_add_32";
+import Delete32 from "../../../images/Egeria_delete_32";
+import Edit32 from "../../../images/Egeria_edit_32";
+import Term32 from "../../../images/Egeria_term_32";
 import {
   LocalGlossaryCard,
   GlossaryCardSection,
@@ -46,20 +47,19 @@ export default function GlossaryAuthorNavigation({ match }) {
     [debouncedFilterCriteria, exactMatch]
   );
   const processUserCriteriaAndIssueSearch = () => {
- // sort out the actual search criteria.
- let actualDebounceCriteria = debouncedFilterCriteria;
- if (actualDebounceCriteria) {
-   if (!exactMatch) {
-     actualDebounceCriteria = actualDebounceCriteria + ".*";
-   }
- } else {
-   // by default get everything
-   actualDebounceCriteria = ".*";
- }
- // Fire off our API call
- issueGlossarySearch(actualDebounceCriteria);
-  }
-
+    // sort out the actual search criteria.
+    let actualDebounceCriteria = debouncedFilterCriteria;
+    if (actualDebounceCriteria) {
+      if (!exactMatch) {
+        actualDebounceCriteria = actualDebounceCriteria + ".*";
+      }
+    } else {
+      // by default get everything
+      actualDebounceCriteria = ".*";
+    }
+    // Fire off our API call
+    issueGlossarySearch(actualDebounceCriteria);
+  };
 
   // issue search for first page of glossaries
   const issueGlossarySearch = (criteria) => {
@@ -79,7 +79,7 @@ export default function GlossaryAuthorNavigation({ match }) {
   };
   /**
    * Delete the supplied glossary if it's guid matches the selected one.
-   * @param {*} glossary 
+   * @param {*} glossary
    */
   const deleteIfSelected = (glossary) => {
     if (glossary.systemAttributes.guid == selectedGlossaryGuid) {
@@ -87,7 +87,7 @@ export default function GlossaryAuthorNavigation({ match }) {
       const url = nodeType.url + "/" + guid;
       issueRestDelete(url, onSuccessfulDelete, onErrorDelete);
     }
-  }
+  };
 
   const onSuccessfulDelete = () => {
     setSelectedGlossaryGuid(undefined);
@@ -125,8 +125,11 @@ export default function GlossaryAuthorNavigation({ match }) {
   function getAddGlossaryUrl() {
     return match.path + "/add-glossary";
   }
+  function getQuickTermsUrl() {
+    return match.path + "/" + selectedGlossaryGuid + "/quick-terms";
+  }
   function getEditGlossaryUrl() {
-    return match.path + "/edit-glossary/" + {selectedGlossaryGuid};
+    return match.path + "/edit-glossary/" + selectedGlossaryGuid;
   }
   const onFilterCriteria = (e) => {
     setFilterCriteria(e.target.value);
@@ -163,15 +166,24 @@ export default function GlossaryAuthorNavigation({ match }) {
               />
             </div>
           </article>
-          <article className="glossary-card__controls bx--col-sm-4 bx--col-md-1 bx--col-lg-1 bx--col-xlg-1 bx--col-max-1">
+          <article className="glossary-card__controls bx--col-sm-4 bx--col-md-1 bx--col-lg-3 bx--col-xlg-3 bx--col-max-2">
             <div className="bx--row">
               <Link to={getAddGlossaryUrl}>
-                <Add16 kind="primary" />
+                <Add32 kind="primary" />
               </Link>
-              <Delete16 onClick={() => onClickDelete()} />
-              <Link to={getEditGlossaryUrl()}>
-                <Edit16 kind="primary" />
-              </Link>
+              {selectedGlossaryGuid && (
+                  <Link to={getQuickTermsUrl}>
+                    <Term32 kind="primary" />
+                  </Link>
+              )}
+              {selectedGlossaryGuid && (
+                <Link to={getEditGlossaryUrl()}>
+                  <Edit32 kind="primary" />
+                </Link>
+              )}
+              {selectedGlossaryGuid && (
+                <Delete32 onClick={() => onClickDelete()} />
+              )}
             </div>
           </article>
         </GlossaryCardSection>
