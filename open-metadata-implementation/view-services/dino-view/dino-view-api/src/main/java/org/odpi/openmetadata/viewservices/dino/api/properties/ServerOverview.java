@@ -32,7 +32,7 @@ public class ServerOverview {
     private ServerTypeClassificationSummary serverClassification;
     private boolean                         isActive;
     private Map<String,ServerCohortDetails> cohortDetails;
-    private ServerStatus                    serverStatus;
+    private ServerStatus serverStatus;
     private List<String>                    serverServicesList;
 
 

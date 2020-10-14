@@ -178,15 +178,20 @@ public class PlatformServicesClient
     {
         final String methodName = "getServerStatus";
 
-
-
         invalidParameterHandler.validateUserId(userId, methodName);
 
         final String urlTemplate = platformRootURL + retrieveURLTemplatePrefix + "/servers/"+serverName+"/status";
 
         ServerStatusResponse restResult = restClient.callServerStatusGetRESTCall(methodName, urlTemplate, userId);
 
-        return restResult.getServerStatus();
+        ServerStatus serverStatus = new ServerStatus();
+        serverStatus.setServerName(restResult.getServerName());
+        serverStatus.setIsActive(restResult.isActive());
+        serverStatus.setServerStartTime(restResult.getServerStartTime());
+        serverStatus.setServerEndTime(restResult.getServerEndTime());
+        serverStatus.setServerHistory(restResult.getServerHistory());
+
+        return serverStatus;
     }
 
 
