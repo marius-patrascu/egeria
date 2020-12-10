@@ -4,23 +4,7 @@ package org.odpi.openmetadata.viewservices.tex.handlers;
 
 
 import org.odpi.openmetadata.adminservices.configuration.properties.ResourceEndpointConfig;
-import org.odpi.openmetadata.commonservices.ffdc.OMAGCommonErrorCode;
-import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.instances.Classification;
-import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.instances.EntityDetail;
-import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.instances.EntityProxy;
-import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.instances.InstanceGraph;
-import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.instances.InstanceStatus;
-import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.instances.InstanceType;
-import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.instances.Relationship;
-import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.typedefs.TypeDefLink;
-import org.odpi.openmetadata.repositoryservices.ffdc.exception.EntityNotKnownException;
-import org.odpi.openmetadata.repositoryservices.ffdc.exception.EntityProxyOnlyException;
-import org.odpi.openmetadata.repositoryservices.ffdc.exception.FunctionNotSupportedException;
 import org.odpi.openmetadata.repositoryservices.ffdc.exception.InvalidParameterException;
-import org.odpi.openmetadata.repositoryservices.ffdc.exception.PagingErrorException;
-import org.odpi.openmetadata.repositoryservices.ffdc.exception.PropertyErrorException;
-import org.odpi.openmetadata.repositoryservices.ffdc.exception.RelationshipNotKnownException;
-import org.odpi.openmetadata.repositoryservices.ffdc.exception.TypeErrorException;
 import org.odpi.openmetadata.repositoryservices.ffdc.exception.UserNotAuthorizedException;
 import org.odpi.openmetadata.repositoryservices.clients.EnterpriseRepositoryServicesClient;
 import org.odpi.openmetadata.repositoryservices.clients.LocalRepositoryServicesClient;
@@ -35,6 +19,9 @@ import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollec
 import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.typedefs.TypeDefCategory;
 import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.typedefs.TypeDefGallery;
 import org.odpi.openmetadata.repositoryservices.ffdc.exception.RepositoryErrorException;
+import org.odpi.openmetadata.viewservices.tex.api.ffdc.TexExceptionHandler;
+import org.odpi.openmetadata.viewservices.tex.api.ffdc.TexViewErrorCode;
+import org.odpi.openmetadata.viewservices.tex.api.ffdc.TexViewServiceException;
 import org.odpi.openmetadata.viewservices.tex.api.properties.ClassificationExplorer;
 import org.odpi.openmetadata.viewservices.tex.api.properties.EntityExplorer;
 import org.odpi.openmetadata.viewservices.tex.api.properties.RelationshipExplorer;
@@ -45,7 +32,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,13 +78,24 @@ public class TexViewHandler
                 }
             ]
     */
-    private Map<String, ResourceEndpoint>  configuredPlatforms = null;  // map is keyed using platformRootURL
+    private Map<String, ResourceEndpoint>  configuredPlatforms = null;          // map is keyed using platformRootURL
     private Map<String, ResourceEndpoint>  configuredServerInstances   = null;  // map is keyed using serverName+platformRootURL so each instance is unique
 
 
 
-    public TexViewHandler(List<ResourceEndpointConfig>  resourceEndpoints) {
+    /**
+     * Default constructor for TexViewHandler
+     */
+    public TexViewHandler() {
 
+    }
+
+
+    /**
+     * TexViewHandler constructor with configured resourceEndpoints
+     * @param resourceEndpoints - list of resource endpoint configuration objects for this view service
+     */
+    public TexViewHandler(List<ResourceEndpointConfig>  resourceEndpoints) {
 
         /*
          * Populate map of resources with their endpoints....
@@ -106,9 +103,10 @@ public class TexViewHandler
 
         // TODO - It would be desirable to add validation rules to ensure uniqueness etc.
 
+        configuredPlatforms         = new HashMap<>();
+        configuredServerInstances   = new HashMap<>();
+
         if (resourceEndpoints != null && !resourceEndpoints.isEmpty()) {
-            configuredPlatforms         = new HashMap<>();
-            configuredServerInstances   = new HashMap<>();
 
             resourceEndpoints.forEach(res -> {
 
@@ -142,22 +140,33 @@ public class TexViewHandler
      *
      * @param userId  userId under which the request is performed
      * @param methodName The name of the method being invoked
-     * This method will return the resource endpoints that have been configured for the view service
+     * @return The resource endpoints that have been configured for the view service
      *
      */
     public Map<String, List<ResourceEndpoint>> getResourceEndpoints(String userId, String methodName)
 
     {
 
-        List<ResourceEndpoint> platformList = new ArrayList<>();
-        List<ResourceEndpoint> serverList   = new ArrayList<>();
-
-        platformList.addAll(configuredPlatforms.values());
-        serverList.addAll(configuredServerInstances.values());
-
         Map<String, List<ResourceEndpoint>> returnMap = new HashMap<>();
+
+        List<ResourceEndpoint> platformList = null;
+        List<ResourceEndpoint> serverList   = null;
+
+        if (!configuredPlatforms.isEmpty())
+        {
+            platformList = new ArrayList<>();
+            platformList.addAll(configuredPlatforms.values());
+        }
+
+        if (!configuredServerInstances.isEmpty())
+        {
+            serverList = new ArrayList<>();
+            serverList.addAll(configuredServerInstances.values());
+        }
+
         returnMap.put("platformList",platformList);
         returnMap.put("serverList",serverList);
+
         return returnMap;
     }
 
@@ -168,11 +177,12 @@ public class TexViewHandler
      *
      * This method will look up the configured root URL for the named platform.
      *
-     * @param platformName
+     * @param platformName - the name if the platform to be resolved (to a URL)
      * @return resolved platform URL Root
-     * @throws org.odpi.openmetadata.frameworks.connectors.ffdc.InvalidParameterException
+     * Exceptions
+     * @throws TexViewServiceException  an error was detected and details are reported in the exception
      */
-    private String resolvePlatformRootURL(String platformName, String methodName) throws InvalidParameterException
+    private String resolvePlatformRootURL(String platformName, String methodName) throws TexViewServiceException
 
     {
         String platformRootURL = null;
@@ -184,10 +194,9 @@ public class TexViewHandler
             }
         }
         if (platformName == null || platformRootURL == null) {
-            throw new InvalidParameterException(OMAGCommonErrorCode.VIEW_SERVICE_NULL_PLATFORM_NAME.getMessageDefinition(),
-                                                this.getClass().getName(),
-                                                methodName,
-                                                "platformName");
+            throw new TexViewServiceException(TexViewErrorCode.VIEW_SERVICE_NULL_PLATFORM_NAME.getMessageDefinition(),
+                                              this.getClass().getName(),
+                                              methodName);
         }
 
         return platformRootURL;
@@ -197,12 +206,6 @@ public class TexViewHandler
 
 
 
-    /**
-     * Constructor for the TexViewHandler
-     */
-    public TexViewHandler() {
-
-    }
 
     /**
      * Retrieve type information from the repository server
@@ -210,31 +213,27 @@ public class TexViewHandler
      * @param repositoryServerName The name of the repository server to interrogate
      * @param platformName The name of the platform running the repository server to interrogate
      * @param enterpriseOption Whether the query is at cohort level or server specific
+     * @param deprecationOption only include deprecated types if this option is true
      * @param methodName The name of the method being invoked
      * @return response containing the TypeExplorer object.
      *
-     * Exceptions returned by the server
-     * @throws UserNotAuthorizedException  the requesting user is not authorized to issue this request.
-     * @throws InvalidParameterException  one of the parameters is null or invalid.
-     *
-     * Client library Exceptions
-     * @throws RepositoryErrorException Repository could not satisfy the request
+     * Exceptions
+     * @throws TexViewServiceException  an error was detected and details are reported in the exception
      */
     public TypeExplorer getTypeExplorer(String    userId,
                                         String    repositoryServerName,
                                         String    platformName,
                                         boolean   enterpriseOption,
+                                        boolean   deprecationOption,
                                         String    methodName)
     throws
-        RepositoryErrorException,
-        InvalidParameterException,
-        UserNotAuthorizedException
+        TexViewServiceException
 
     {
 
-        String platformRootURL = resolvePlatformRootURL(platformName, methodName);
-
         try {
+
+        String platformRootURL = resolvePlatformRootURL(platformName, methodName);
 
             /*
              *  Switch between local and enterprise services clients depending
@@ -289,16 +288,22 @@ public class TexViewHandler
             }
 
             // All typeDefs processed, resolve linkages and return the TEX object
-            tex.resolve();
+            tex.resolve(deprecationOption);
             return tex;
 
         }
-        catch (UserNotAuthorizedException |
-                RepositoryErrorException |
-                InvalidParameterException e) {
-            throw e;
+        catch (UserNotAuthorizedException e)
+        {
+            throw TexExceptionHandler.mapOMRSUserNotAuthorizedException(this.getClass().getName(), methodName, e);
         }
-
+        catch (RepositoryErrorException e)
+        {
+            throw TexExceptionHandler.mapOMRSRepositoryErrorException(this.getClass().getName(), methodName, e);
+        }
+        catch (InvalidParameterException e)
+        {
+            throw TexExceptionHandler.mapOMRSInvalidParameterException(this.getClass().getName(), methodName, e);
+        }
     }
 
 
@@ -311,9 +316,9 @@ public class TexViewHandler
      * MetadataCollection interface. This client is used when the enterprise option is not set, and will
      * connect to the local repository.
      *
-     * @param serverName
-     * @param serverRootURL
-     * @throws InvalidParameterException
+     * @param serverName - name of the server to connect to
+     * @param serverRootURL - the root URL to connect to the server
+     * @throws InvalidParameterException - an invalid parameter was detected and reported
      */
     private LocalRepositoryServicesClient getLocalRepositoryServicesClient(String serverName,
                                                                            String serverRootURL)
@@ -344,9 +349,9 @@ public class TexViewHandler
      * MetadataCollection interface. This client is used when the enterprise option is set, and will
      * perform federation.
      *
-     * @param serverName
-     * @param serverRootURL
-     * @throws InvalidParameterException
+     * @param serverName - name of the server to connect to
+     * @param serverRootURL - the root URL to connect to the server
+     * @throws InvalidParameterException - an invalid parameter was detected and reported
      */
     private EnterpriseRepositoryServicesClient getEnterpriseRepositoryServicesClient(String serverName,
                                                                                      String serverRootURL)

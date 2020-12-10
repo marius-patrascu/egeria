@@ -267,12 +267,12 @@ public enum OMRSAuditCode implements AuditLogMessageSet
                       OMRSAuditLogRecordSeverity.STARTUP,
                       "The {0} event manager is sending out the {1} type definition events that were generated and buffered during server initialization",
                       "The event manager is fully initialized and distributing buffered events that describe type definitions",
-                      "Look for evidence that events are flowing to the topic on the event bus."),
+                      "Look for evidence that TypeDef events are flowing to the topic on the event bus."),
 
     DRAINING_INSTANCE_EVENT_BUFFER("OMRS-AUDIT-0033",
                       OMRSAuditLogRecordSeverity.INFO,
                       "The {0} event manager is sending out the {1} instance events that were generated and buffered during server initialization",
-                      "The event manager is fully initialized and distributing buffered events that describe type definitions",
+                      "The event manager is fully initialized and distributing buffered events that describe instance definitions",
                       "Look for evidence that events are flowing to the topic on the event bus."),
 
     BAD_REAL_LOCAL_REPOSITORY_CONNECTOR("OMRS-AUDIT-0034",
@@ -1030,7 +1030,7 @@ public enum OMRSAuditCode implements AuditLogMessageSet
 
     UNEXPECTED_EXCEPTION_FROM_EVENT("OMRS-AUDIT-9011",
                        OMRSAuditLogRecordSeverity.EXCEPTION,
-                       "An incoming event of type {0} from {1} ({2}) generated an exception with message {3}",
+                       "An incoming event of type {0} from {1} ({2}) generated an exception of type {3} with message {4}",
                        "The contents of the event were not accepted by the local repository.",
                        "Review the exception and resolve the issue that the local repository detected."),
 

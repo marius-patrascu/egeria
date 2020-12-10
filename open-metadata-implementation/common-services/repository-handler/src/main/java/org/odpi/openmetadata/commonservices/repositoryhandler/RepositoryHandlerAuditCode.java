@@ -32,8 +32,28 @@ public enum RepositoryHandlerAuditCode implements AuditLogMessageSet
                   OMRSAuditLogRecordSeverity.INFO,
                   "The Open Metadata Service has purged relationship {0} of type {1} ({2}) during method {3} because its home repository {4} does not support soft-delete",
                   "Repository where this relationship is mastered does not support the soft-delete function and so a purge operation was performed. This means that the delete can not be undone.",
-                  "No specific action is required.  This message is to highlight that the relationship can no longer be restored.  If this behavior is unacceptable, then it is possible to re-home the relationship to a repository that supports soft-delete.")
+                  "No specific action is required.  This message is to highlight that the relationship can no longer be restored.  If this behavior" +
+                                " is unacceptable, then it is possible to re-home the relationship to a repository that supports soft-delete."),
 
+    PROPERTY_SERVER_ERROR("OMAG-REPOSITORY-HANDLER-0003",
+                          OMRSAuditLogRecordSeverity.EXCEPTION,
+                          "An unexpected error {4} was returned to {5} by the metadata server during {1} request for open metadata access service {2} on " +
+                                  "server {3}; message was {0}",
+                          "The system is unable to process the request because of an internal error.",
+                          "Verify the sanity of the server.  This is probably a logic error.  If you can not work out what happened, ask the ODPi Egeria community for help."),
+
+    UNABLE_TO_SET_ANCHORS("OMAG-REPOSITORY-HANDLER-0004",
+                          OMRSAuditLogRecordSeverity.ERROR,
+                          "The Open Metadata Service {0} is not able to set the Anchors classification on a new entity of type {1} during method {2}." +
+                                  " The resulting exception was {3} with error message {4}",
+                          "The server was attempting to add Anchors classifications to a collection of metadata instances that are " +
+                                  "logically part of the same object.  This classification is used to optimize the retrieval and " +
+                                  "maintenance of complex objects.  It is optional function.  The server continues to " +
+                                  "process the original request which will complete successfully unless something else goes wrong.",
+                          "No specific action is required.  This message is to highlight that the retrieval and management of metadata is not optimal" +
+                                  "because none of the repositories in the cohort support the Anchors classification.  To enable the " +
+                                  "optimization provided through the Anchors classification, add an Egeria native metadata server to the cohort.  " +
+                                  "This will provide the support for the Anchors classification."),
     ;
 
     private String                     logMessageId;

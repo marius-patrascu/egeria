@@ -3,6 +3,8 @@
 package org.odpi.openmetadata.accessservices.assetowner.samples.createavrofile;
 
 import org.odpi.openmetadata.accessservices.assetowner.client.AvroFileAssetOwner;
+import org.odpi.openmetadata.http.HttpHelper;
+
 
 /**
  * CreateAvroFileAssetSample creates a simple asset definition in the open metadata repositories for
@@ -73,6 +75,9 @@ public class CreateAvroFileAssetSample
             System.exit(-1);
         }
 
+        HttpHelper.noStrictSSLIfConfigured();
+
+
         String  fileName = args[0];
         String  serverName = "cocoMDS1";
         String  serverURLRoot = "https://localhost:9444";
@@ -95,7 +100,7 @@ public class CreateAvroFileAssetSample
         }
 
         System.out.println("===============================");
-        System.out.println("Apache Avro File Asset Creation   ");
+        System.out.println("Apache Avro FileProperties Asset Creation   ");
         System.out.println("===============================");
         System.out.println("Running against server: " + serverName + " at " + serverURLRoot);
         System.out.println("Using userId: " + clientUserId);

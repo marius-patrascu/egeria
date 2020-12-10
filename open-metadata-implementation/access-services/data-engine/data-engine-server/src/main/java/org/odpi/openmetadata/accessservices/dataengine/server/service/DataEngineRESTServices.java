@@ -4,23 +4,10 @@ package org.odpi.openmetadata.accessservices.dataengine.server.service;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.odpi.openmetadata.accessservices.dataengine.model.Attribute;
-import org.odpi.openmetadata.accessservices.dataengine.model.LineageMapping;
-import org.odpi.openmetadata.accessservices.dataengine.model.ParentProcess;
-import org.odpi.openmetadata.accessservices.dataengine.model.PortAlias;
-import org.odpi.openmetadata.accessservices.dataengine.model.PortImplementation;
+import org.odpi.openmetadata.accessservices.dataengine.ffdc.DataEngineErrorCode;
+import org.odpi.openmetadata.accessservices.dataengine.model.*;
 import org.odpi.openmetadata.accessservices.dataengine.model.Process;
-import org.odpi.openmetadata.accessservices.dataengine.model.SchemaType;
-import org.odpi.openmetadata.accessservices.dataengine.model.SoftwareServerCapability;
-import org.odpi.openmetadata.accessservices.dataengine.model.UpdateSemantic;
-import org.odpi.openmetadata.accessservices.dataengine.rest.DataEngineRegistrationRequestBody;
-import org.odpi.openmetadata.accessservices.dataengine.rest.LineageMappingsRequestBody;
-import org.odpi.openmetadata.accessservices.dataengine.rest.PortAliasRequestBody;
-import org.odpi.openmetadata.accessservices.dataengine.rest.PortImplementationRequestBody;
-import org.odpi.openmetadata.accessservices.dataengine.rest.PortListRequestBody;
-import org.odpi.openmetadata.accessservices.dataengine.rest.ProcessListResponse;
-import org.odpi.openmetadata.accessservices.dataengine.rest.ProcessesRequestBody;
-import org.odpi.openmetadata.accessservices.dataengine.rest.SchemaTypeRequestBody;
+import org.odpi.openmetadata.accessservices.dataengine.rest.*;
 import org.odpi.openmetadata.accessservices.dataengine.server.admin.DataEngineInstanceHandler;
 import org.odpi.openmetadata.accessservices.dataengine.server.handlers.DataEngineRegistrationHandler;
 import org.odpi.openmetadata.accessservices.dataengine.server.handlers.DataEngineSchemaTypeHandler;
@@ -250,6 +237,41 @@ public class DataEngineRESTServices {
     }
 
     /**
+     * Add the provided ProcessHierarchy relationship
+     *
+     * @param serverName                  name of server instance to call
+     * @param userId                      the name of the calling user
+     * @param processHierarchyRequestBody properties of the process hierarchy
+     *
+     * @return the unique identifier (guid) of the child of the process hierarchy that was updated
+     */
+    public GUIDResponse addProcessHierarchy(String userId, String serverName, ProcessHierarchyRequestBody processHierarchyRequestBody) {
+        final String methodName = "addProcessHierarchy";
+
+        GUIDResponse response = new GUIDResponse();
+
+        try {
+            if (processHierarchyRequestBody == null) {
+                restExceptionHandler.handleNoRequestBody(userId, methodName, serverName);
+                return response;
+            }
+
+            response.setGUID(addProcessHierarchyToProcess(userId, serverName, processHierarchyRequestBody.getProcessHierarchy(),
+                    processHierarchyRequestBody.getExternalSourceName()));
+
+
+        } catch (InvalidParameterException error) {
+            restExceptionHandler.captureInvalidParameterException(response, error);
+        } catch (PropertyServerException error) {
+            restExceptionHandler.capturePropertyServerException(response, error);
+        } catch (UserNotAuthorizedException error) {
+            restExceptionHandler.captureUserNotAuthorizedException(response, error);
+        }
+
+        return response;
+    }
+
+    /**
      * Create or update the processes with ports, schema types and lineage mappings
      *
      * @param userId               the name of the calling user
@@ -297,7 +319,7 @@ public class DataEngineRESTServices {
                                                                                                                                           UserNotAuthorizedException {
         final String methodName = "createOrUpdatePortAliasWithDelegation";
 
-        log.debug(DEBUG_MESSAGE_METHOD_DETAILS, methodName, portAlias);
+        log.trace(DEBUG_MESSAGE_METHOD_DETAILS, methodName, portAlias);
 
         PortHandler portHandler = instanceHandler.getPortHandler(userId, serverName, methodName);
 
@@ -315,9 +337,54 @@ public class DataEngineRESTServices {
             portHandler.addPortDelegationRelationship(userId, portAliasGUID, portAlias.getPortType(), portAlias.getDelegatesTo(), externalSourceName);
         }
 
-        log.debug(DEBUG_MESSAGE_METHOD_RETURN, methodName, portAliasGUID);
+        log.trace(DEBUG_MESSAGE_METHOD_RETURN, methodName, portAliasGUID);
 
         return portAliasGUID;
+    }
+
+    /**
+     * Add a a ProcessHierarchy relationship to the process
+     *
+     * @param userId             the name of the calling user
+     * @param serverName         name of server instance to call
+     * @param processHierarchy   the process hierarchy values
+     * @param externalSourceName the unique name of the external source
+     *
+     * @return the unique identifier (guid) of the child of the process hierarchy that was updated
+     *
+     * @throws InvalidParameterException  the bean properties are invalid
+     * @throws UserNotAuthorizedException user not authorized to issue this request
+     * @throws PropertyServerException    problem accessing the property server
+     */
+    public String addProcessHierarchyToProcess(String userId, String serverName, ProcessHierarchy processHierarchy, String externalSourceName) throws
+                                                                                                                                               InvalidParameterException,
+                                                                                                                                               PropertyServerException,
+                                                                                                                                               UserNotAuthorizedException {
+        final String methodName = "addProcessHierarchyToProcess";
+
+        log.debug(DEBUG_MESSAGE_METHOD_DETAILS, methodName, processHierarchy);
+
+        ProcessHandler processHandler = instanceHandler.getProcessHandler(userId, serverName, methodName);
+
+        Optional<EntityDetail> childProcessEntity = processHandler.findProcessEntity(userId, processHierarchy.getChildProcess());
+
+        String childProcessGUID;
+        if (childProcessEntity.isPresent()) {
+            childProcessGUID = childProcessEntity.get().getGUID();
+            ParentProcess parentProcess = new ParentProcess();
+            parentProcess.setQualifiedName(processHierarchy.getParentProcess());
+            parentProcess.setProcessContainmentType(processHierarchy.getProcessContainmentType());
+            processHandler.createOrUpdateProcessHierarchyRelationship(userId, parentProcess, childProcessGUID, externalSourceName);
+        } else {
+            throw new InvalidParameterException(DataEngineErrorCode.PROCESS_NOT_FOUND.getMessageDefinition(processHierarchy.getChildProcess()),
+                    this.getClass().getName(), methodName, "childProcess");
+        }
+
+        log.info("Data Engine OMAS has added a relationship of type ProcessHierarchy between child process {} and parent process {}",
+                processHierarchy.getChildProcess(), processHierarchy.getParentProcess());
+
+        log.debug(DEBUG_MESSAGE_METHOD_RETURN, methodName, childProcessGUID);
+        return childProcessGUID;
     }
 
     /**
@@ -340,7 +407,7 @@ public class DataEngineRESTServices {
                                                                                                    UserNotAuthorizedException {
         final String methodName = "createOrUpdatePortImplementationWithSchemaType";
 
-        log.debug(DEBUG_MESSAGE_METHOD_DETAILS, methodName, portImplementation);
+        log.trace(DEBUG_MESSAGE_METHOD_DETAILS, methodName, portImplementation);
 
         PortHandler portHandler = instanceHandler.getPortHandler(userId, serverName, methodName);
 
@@ -362,7 +429,7 @@ public class DataEngineRESTServices {
 
         portHandler.addPortSchemaRelationship(userId, portImplementationGUID, schemaTypeGUID, externalSourceName);
 
-        log.debug(DEBUG_MESSAGE_METHOD_RETURN, methodName, portImplementationGUID);
+        log.trace(DEBUG_MESSAGE_METHOD_RETURN, methodName, portImplementationGUID);
 
         return portImplementationGUID;
     }
@@ -394,7 +461,11 @@ public class DataEngineRESTServices {
 
         DataEngineRegistrationHandler handler = instanceHandler.getRegistrationHandler(userId, serverName, methodName);
 
-        return handler.createOrUpdateExternalDataEngine(userId, softwareServerCapability);
+        String softwareServerCapabilityGUID = handler.createOrUpdateExternalDataEngine(userId, softwareServerCapability);
+
+        log.info("Data Engine OMAS has registered an external engine with qualified name {} and GUID {}",
+                softwareServerCapability.getQualifiedName(), softwareServerCapabilityGUID);
+        return softwareServerCapabilityGUID;
     }
 
     /**
@@ -487,7 +558,7 @@ public class DataEngineRESTServices {
     public ProcessListResponse createOrUpdateProcesses(String userId, String serverName, List<Process> processes, String externalSourceName) {
         final String methodName = "createOrUpdateProcesses";
 
-        log.debug(DEBUG_MESSAGE_METHOD_DETAILS, methodName, processes);
+        log.trace(DEBUG_MESSAGE_METHOD_DETAILS, methodName, processes);
 
         Predicate<? super Process> hasPortImplementationsPredicate = process -> CollectionUtils.isNotEmpty(process.getPortImplementations());
         Map<Boolean, List<Process>> partitionedProcesses = processes.parallelStream().collect(partitioningBy(hasPortImplementationsPredicate));
@@ -558,7 +629,7 @@ public class DataEngineRESTServices {
             restExceptionHandler.captureUserNotAuthorizedException(response, error);
         }
 
-        log.debug(DEBUG_MESSAGE_METHOD_RETURN, methodName, response);
+        log.trace(DEBUG_MESSAGE_METHOD_RETURN, methodName, response);
 
         return response;
     }
@@ -598,15 +669,16 @@ public class DataEngineRESTServices {
     }
 
     /**
-     *  Retrieve in topic connection details from the service instance hosting Data Engine access service
+     * Retrieve in topic connection details from the service instance hosting Data Engine access service
+     *
      * @param serverName the name of server instance to call
-     * @param userId the name/identifier of the calling user
+     * @param userId     the name/identifier of the calling user
      *
      * @return OCF API ConnectionResponse object describing the details for the input topic connection used
      * or
-     *      * InvalidParameterException one of the parameters is null or invalid or
-     *      * UserNotAuthorizedException user not authorized to issue this request or
-     *      * PropertyServerException problem retrieving the discovery engine definition
+     * InvalidParameterException one of the parameters is null or invalid or
+     * UserNotAuthorizedException user not authorized to issue this request or
+     * PropertyServerException problem retrieving the discovery engine definition
      */
     public ConnectionResponse getInTopicConnection(String serverName, String userId) {
 
@@ -627,10 +699,24 @@ public class DataEngineRESTServices {
     }
 
 
+    /**
+     * Create or update a SchemaType
+     *
+     * @param userId             the name of the calling user
+     * @param serverName         name of server instance to call
+     * @param schemaType         the schema type values
+     * @param externalSourceName the unique name of the external source
+     *
+     * @return the unique identifier (guid) of the created schema type
+     *
+     * @throws InvalidParameterException  the bean properties are invalid
+     * @throws UserNotAuthorizedException user not authorized to issue this request
+     * @throws PropertyServerException    problem accessing the property server
+     */
     public String createOrUpdateSchemaType(String userId, String serverName, SchemaType schemaType, String externalSourceName) throws
-                                                                                                                                InvalidParameterException,
-                                                                                                                                UserNotAuthorizedException,
-                                                                                                                                PropertyServerException {
+                                                                                                                               InvalidParameterException,
+                                                                                                                               UserNotAuthorizedException,
+                                                                                                                               PropertyServerException {
         final String methodName = "createOrUpdateSchemaType";
 
         log.debug(DEBUG_MESSAGE_METHOD_DETAILS, methodName, schemaType);
@@ -674,7 +760,7 @@ public class DataEngineRESTServices {
     private VoidResponse updateProcessStatus(String userId, String serverName, String processGUID, InstanceStatus instanceStatus) {
         final String methodName = "updateProcessStatus";
 
-        log.debug(DEBUG_MESSAGE_METHOD_DETAILS, methodName, processGUID);
+        log.trace(DEBUG_MESSAGE_METHOD_DETAILS, methodName, processGUID);
 
         VoidResponse response = new VoidResponse();
         try {
@@ -689,7 +775,7 @@ public class DataEngineRESTServices {
             restExceptionHandler.captureUserNotAuthorizedException(response, error);
         }
 
-        log.debug(DEBUG_MESSAGE_METHOD_RETURN, methodName, response);
+        log.trace(DEBUG_MESSAGE_METHOD_RETURN, methodName, response);
 
         return response;
     }
@@ -755,6 +841,8 @@ public class DataEngineRESTServices {
 
             addLineageMappings(userId, serverName, lineageMappings, response, externalSourceName);
 
+            log.info("Data Engine OMAS has created or updated a Process with qualified name {} and guid {}", qualifiedName, processGUID);
+
             response.setGUID(processGUID);
         } catch (InvalidParameterException error) {
             log.error(EXCEPTION_WHILE_CREATING_PROCESS, qualifiedName, error.toString());
@@ -796,8 +884,6 @@ public class DataEngineRESTServices {
                                                   String externalSourceName) {
         final String methodName = "addProcessHierarchyRelationships";
 
-        ArrayList<String> failedGUIDS = new ArrayList<>();
-
         // add the ProcessHierarchy relationships only for successfully created processes
         processes.parallelStream().filter(process -> response.getGUIDs().contains(process.getGUID())).forEach(process -> {
             List<ParentProcess> parentProcesses = process.getParentProcesses();
@@ -819,17 +905,7 @@ public class DataEngineRESTServices {
                     restExceptionHandler.captureUserNotAuthorizedException(response, error);
                 }
             }
-            // failed to create a processHierarchy relationship, set the status of the process back to DRAFT and add the processGUID
-            // to the list of failed processes
-            if (response.getRelatedHTTPCode() != HttpStatus.OK.value()) {
-                updateProcessStatus(userId, serverName, processGUID, InstanceStatus.DRAFT);
-                failedGUIDS.add(processGUID);
-            }
         });
-
-        // update the ProcessListResponse to reflect the updated status for the created/failed processes
-        response.getGUIDs().removeAll(failedGUIDS);
-        response.getFailedGUIDs().addAll(failedGUIDS);
     }
 
     private void addProcessPortRelationships(String userId, String serverName, String processGUID, Set<String> portGUIDs, GUIDResponse response,

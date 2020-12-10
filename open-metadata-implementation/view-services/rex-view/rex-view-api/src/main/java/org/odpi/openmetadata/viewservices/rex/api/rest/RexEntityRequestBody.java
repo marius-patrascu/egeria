@@ -21,10 +21,9 @@ public class RexEntityRequestBody {
      */
 
     private String                    serverName;                    // must be non-null
-    private String                    serverRootURL;                 // must be non-null
+    private String                    platformName;                  // must be non-null
     private String                    entityGUID;                    // must be non-null, GUID of root of traversal
-    private Boolean                   enterpriseOption;
-    private Integer                   gen;                           // indicator of the current gen of the traversal
+    private Boolean                   enterpriseOption;              // if not set will default to false
 
 
     public RexEntityRequestBody() {
@@ -37,25 +36,26 @@ public class RexEntityRequestBody {
 
     public String getServerName() { return serverName; }
 
-    public String getServerRootURL() { return serverRootURL; }
+    public String getPlatformName() { return platformName; }
 
     public String getEntityGUID() { return entityGUID; }
 
-    public Boolean getEnterpriseOption() { return enterpriseOption; }
+    public Boolean getEnterpriseOption() {
+        if (enterpriseOption == null)
+            return false;
+        else
+            return enterpriseOption;
+    }
 
-    public Integer getGen() { return gen; }
 
-    // ---
+
     public void setServerName(String serverName) { this.serverName = serverName; }
 
-    public void setServerRootURL(String serverRootURL) { this.serverRootURL = serverRootURL; }
+    public void setPlatformName(String platformName) { this.platformName = platformName; }
 
     public void setEntityGUID(String entityGUID) { this.entityGUID = entityGUID; }
 
     public void setEnterpriseOption(Boolean enterpriseOption) { this.enterpriseOption = enterpriseOption; }
-
-    public void setGen(Integer gen) { this.gen = gen; }
-
 
 
 
@@ -65,10 +65,9 @@ public class RexEntityRequestBody {
     {
         return "RexEntityRequestBody{" +
                 ", serverName=" + serverName +
-                ", serverRootURL=" + serverRootURL +
+                ", platformName=" + platformName +
                 ", entityGUID=" + entityGUID +
                 ", enterpriseOption=" + enterpriseOption +
-                ", gen=" + gen +
                 '}';
     }
 

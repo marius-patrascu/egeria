@@ -8,7 +8,8 @@ import org.odpi.openmetadata.accessservices.assetlineage.handlers.GlossaryContex
 import org.odpi.openmetadata.accessservices.assetlineage.handlers.ProcessContextHandler;
 import org.odpi.openmetadata.accessservices.assetlineage.outtopic.AssetLineagePublisher;
 import org.odpi.openmetadata.adminservices.configuration.registration.AccessServiceDescription;
-import org.odpi.openmetadata.commonservices.multitenant.OCFOMASServiceInstanceHandler;
+import org.odpi.openmetadata.commonservices.multitenant.OMASServiceInstanceHandler;
+import org.odpi.openmetadata.frameworks.auditlog.AuditLog;
 import org.odpi.openmetadata.frameworks.connectors.ffdc.InvalidParameterException;
 import org.odpi.openmetadata.frameworks.connectors.ffdc.PropertyServerException;
 import org.odpi.openmetadata.frameworks.connectors.ffdc.UserNotAuthorizedException;
@@ -18,7 +19,8 @@ import org.odpi.openmetadata.frameworks.connectors.ffdc.UserNotAuthorizedExcepti
  * access service instances.  The instance map is thread-safe.  Instances are added
  * and removed by the AssetLineageAdmin class.
  */
-public class AssetLineageInstanceHandler extends OCFOMASServiceInstanceHandler {
+public class AssetLineageInstanceHandler extends OMASServiceInstanceHandler
+{
 
     /**
      * Default constructor registers the access service
@@ -130,6 +132,30 @@ public class AssetLineageInstanceHandler extends OCFOMASServiceInstanceHandler {
             return instance.getAssetLineagePublisher();
         }
 
+        return null;
+    }
+
+
+    /**
+     * Retrieve the AuditLog from the service instance.
+     *
+     * @param userId               calling userId
+     * @param serverName           name of the server tied to the request
+     * @param serviceOperationName name of the REST API call (typically the top-level methodName)
+     * @return
+     * @throws org.odpi.openmetadata.commonservices.ffdc.exceptions.InvalidParameterException
+     * @throws org.odpi.openmetadata.commonservices.ffdc.exceptions.PropertyServerException
+     * @throws org.odpi.openmetadata.commonservices.ffdc.exceptions.UserNotAuthorizedException
+     */
+    public AuditLog getAuditLog(String userId, String serverName, String serviceOperationName)
+            throws org.odpi.openmetadata.commonservices.ffdc.exceptions.InvalidParameterException,
+            org.odpi.openmetadata.commonservices.ffdc.exceptions.PropertyServerException,
+            org.odpi.openmetadata.commonservices.ffdc.exceptions.UserNotAuthorizedException {
+
+        AssetLineageServicesInstance instance = (AssetLineageServicesInstance) super.getServerServiceInstance(userId, serverName, serviceOperationName);
+        if (instance != null) {
+            return instance.getAuditLog();
+        }
         return null;
     }
 }

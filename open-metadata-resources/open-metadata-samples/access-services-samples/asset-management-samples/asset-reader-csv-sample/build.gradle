@@ -3,6 +3,10 @@
  * Copyright Contributors to the ODPi Egeria project.
  */
 
+plugins {
+    id 'application'
+    id "com.github.johnrengelman.shadow"
+}
 
 dependencies {
     implementation project(':open-metadata-implementation:frameworks:open-connector-framework')
@@ -13,6 +17,7 @@ dependencies {
     implementation project(':open-metadata-implementation:common-services:ocf-metadata-management:ocf-metadata-client')
     implementation project(':open-metadata-implementation:adapters:open-connectors:data-store-connectors:file-connectors:basic-file-connector')
     implementation 'com.fasterxml.jackson.core:jackson-annotations'
+    implementation project(':open-metadata-implementation:adapters:authentication-plugins:http-helper')
 
 }
 
@@ -20,4 +25,9 @@ description = 'Asset reader csv sample'
 
 java {
     withJavadocJar()
+}
+
+shadowJar {
+    mainClassName = 'org.odpi.openmetadata.accessservices.assetowner.samples.readcsvfile.CSVFileReaderSample'
+    archiveClassifier = 'jar-with-dependencies'
 }

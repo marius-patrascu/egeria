@@ -29,6 +29,7 @@ public class ElementHeaderConverter
     protected Relationship           relationship = null;
     protected OMRSRepositoryHelper   repositoryHelper;
     protected String                 serviceName;
+    protected String                 serverName;
     protected String                 typeName;
 
     /**
@@ -37,14 +38,17 @@ public class ElementHeaderConverter
      * @param entity properties to convert
      * @param repositoryHelper helper object to parse entity
      * @param serviceName name of this component
+     * @param serverName called server
      */
     ElementHeaderConverter(EntityDetail           entity,
                            OMRSRepositoryHelper   repositoryHelper,
-                           String                 serviceName)
+                           String                 serviceName,
+                           String                 serverName)
     {
         this.entity = entity;
         this.repositoryHelper = repositoryHelper;
         this.serviceName = serviceName;
+        this.serverName = serverName;
         this.setTypeName();
     }
 
@@ -56,16 +60,19 @@ public class ElementHeaderConverter
      * @param relationship properties to convert
      * @param repositoryHelper helper object to parse entity/relationship
      * @param serviceName name of this component
+     * @param serverName called server
      */
     public ElementHeaderConverter(EntityDetail         entity,
                                   Relationship         relationship,
                                   OMRSRepositoryHelper repositoryHelper,
-                                  String               serviceName)
+                                  String               serviceName,
+                                  String               serverName)
     {
         this.entity = entity;
         this.relationship = relationship;
         this.repositoryHelper = repositoryHelper;
         this.serviceName = serviceName;
+        this.serverName = serverName;
         this.setTypeName();
     }
 

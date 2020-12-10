@@ -17,6 +17,8 @@ import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollec
 import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.instances.InstanceStatus;
 import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.instances.InstanceType;
 import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.instances.Relationship;
+import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.search.SearchClassifications;
+import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.search.SearchProperties;
 import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.typedefs.TypeDef;
 import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.typedefs.TypeDefCategory;
 import org.odpi.openmetadata.repositoryservices.connectors.stores.metadatacollectionstore.properties.typedefs.TypeDefGallery;
@@ -83,7 +85,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
                                 OMRSRepositoryValidator      repositoryValidator,
                                 String                       metadataCollectionId,
                                 AuditLog                     auditLog,
-                                Map<String, Object>          storageProperties)
+                                Map<String, Object>          storageProperties) throws RepositoryErrorException
     {
         /*
          * The metadata collection Id is the unique Id for the metadata collection.  It is managed by the super class.
@@ -102,8 +104,12 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
                     storageProperties);
         }
         catch(RepositoryErrorException e) {
+            /*
+             * Log the error here, but also rethrow the exception to the caller so that the connector sees it and can throw an
+             * OMRSLogicErrorException.
+             */
             log.error("{} could not create graph metadata collection for repository name {}", methodName, repositoryName);
-            // Little point throwing the exception any higher here - the error has been logged at all levels;
+            throw e;
         }
     }
 
@@ -337,7 +343,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
             repositoryValidator.validateRelationshipFromStore(repositoryName, guid, relationship, methodName);
         }
         catch (RelationshipNotKnownException e) {
-            log.error("{} relationship with GUID {} does not exist in repository {}", methodName, guid, repositoryName);
+            log.warn("{} relationship with GUID {} does not exist in repository {}", methodName, guid, repositoryName);
             relationship = null;
         }
         return relationship;
@@ -616,7 +622,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
 
         }
         catch (EntityProxyOnlyException e) {
-            log.error("{} entity wth GUID {} only a proxy", methodName, entityGUID);
+            log.warn("{} entity wth GUID {} only a proxy", methodName, entityGUID);
 
             throw new EntityNotKnownException(OMRSErrorCode.ENTITY_PROXY_ONLY.getMessageDefinition(methodName,
                                                                                                    this.getClass().getName(),
@@ -714,7 +720,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
 
         }
         catch (EntityProxyOnlyException | EntityNotKnownException e) {
-            log.error("{} entity wth GUID {} not found or only a proxy", methodName, entityGUID);
+            log.warn("{} entity wth GUID {} not found or only a proxy", methodName, entityGUID);
 
             throw new EntityNotKnownException(OMRSErrorCode.ENTITY_PROXY_ONLY.getMessageDefinition(methodName,
                                                                                                    this.getClass().getName(),
@@ -1691,6 +1697,436 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
     }
 
 
+    /**
+     * Return a list of entities that match the supplied criteria.  The results can be returned over many pages.
+     *
+     * @param userId unique identifier for requesting user.
+     * @param entityTypeGUID String unique identifier for the entity type of interest (null means any entity type).
+     * @param entitySubtypeGUIDs optional list of the unique identifiers (guids) for subtypes of the entityTypeGUID to
+     *                           include in the search results. Null means all subtypes.
+     * @param matchProperties Optional list of entity property conditions to match.
+     * @param fromEntityElement the starting element number of the entities to return.
+     *                                This is used when retrieving elements
+     *                                beyond the first page of results. Zero means start from the first element.
+     * @param limitResultsByStatus By default, entities in all statuses are returned.  However, it is possible
+     *                             to specify a list of statuses (eg ACTIVE) to restrict the results to.  Null means all
+     *                             status values.
+     * @param matchClassifications Optional list of entity classifications to match.
+     * @param asOfTime Requests a historical query of the entity.  Null means return the present values.
+     * @param sequencingProperty String name of the entity property that is to be used to sequence the results.
+     *                           Null means do not sequence on a property name (see SequencingOrder).
+     * @param sequencingOrder Enum defining how the results should be ordered.
+     * @param pageSize the maximum number of result entities that can be returned on this request.  Zero means
+     *                 unrestricted return results size.
+     * @return a list of entities matching the supplied criteria; null means no matching entities in the metadata
+     * collection.
+     * @throws InvalidParameterException a parameter is invalid or null.
+     * @throws TypeErrorException the type guid passed on the request is not known by the
+     *                              metadata collection.
+     * @throws RepositoryErrorException there is a problem communicating with the metadata repository where
+     *                                    the metadata collection is stored.
+     * @throws PropertyErrorException the properties specified are not valid for any of the requested types of
+     *                                  entity.
+     * @throws PagingErrorException the paging/sequencing parameters are set up incorrectly.
+     * @throws UserNotAuthorizedException the userId is not permitted to perform this operation.
+     */
+    @Override
+    public List<EntityDetail> findEntities(String                    userId,
+                                           String                    entityTypeGUID,
+                                           List<String>              entitySubtypeGUIDs,
+                                           SearchProperties          matchProperties,
+                                           int                       fromEntityElement,
+                                           List<InstanceStatus>      limitResultsByStatus,
+                                           SearchClassifications     matchClassifications,
+                                           Date                      asOfTime,
+                                           String                    sequencingProperty,
+                                           SequencingOrder           sequencingOrder,
+                                           int                       pageSize)
+
+    throws InvalidParameterException,
+           RepositoryErrorException,
+           TypeErrorException,
+           PropertyErrorException,
+           PagingErrorException,
+           UserNotAuthorizedException,
+           FunctionNotSupportedException
+
+
+    {
+
+        final String methodName = "findEntities";
+        final String entityTypeGUIDParameterName = "entityTypeGUID";
+
+
+        /*
+         * Validate parameters
+         */
+        super.findEntitiesParameterValidation(userId,
+                                              entityTypeGUID,
+                                              entitySubtypeGUIDs,
+                                              matchProperties,
+                                              fromEntityElement,
+                                              limitResultsByStatus,
+                                              matchClassifications,
+                                              asOfTime,
+                                              sequencingProperty,
+                                              sequencingOrder,
+                                              pageSize);
+
+
+        if (asOfTime != null)
+        {
+            log.error("{} does not support asOfTime searches", methodName);
+
+            super.reportUnsupportedOptionalFunction(methodName);
+        }
+
+
+        /*
+         * Perform operation
+         */
+
+        ArrayList<EntityDetail> returnEntities = null;
+
+
+        String specifiedTypeName = null;
+        if (entityTypeGUID != null)
+        {
+            TypeDef typeDef = repositoryHelper.getTypeDef(repositoryName, entityTypeGUIDParameterName, entityTypeGUID, methodName);
+            specifiedTypeName = typeDef.getName();
+        }
+
+        TypeDefGallery activeTypes = repositoryHelper.getActiveTypeDefGallery();
+        List<TypeDef> allTypeDefs = activeTypes.getTypeDefs();
+
+        for (TypeDef typeDef : allTypeDefs)
+        {
+            if (typeDef.getCategory() == TypeDefCategory.ENTITY_DEF)
+            {
+
+                String actualTypeName = typeDef.getName();
+
+                /*
+                 * If entityTypeGUID parameter is not null there is an expected type, so check whether the
+                 * current type matches the expected type or is one of its sub-types.
+                 */
+                if (specifiedTypeName != null)
+                {
+
+                    boolean typeMatch = repositoryHelper.isTypeOf(metadataCollectionId, actualTypeName, specifiedTypeName);
+                    if (!typeMatch)
+                    {
+                        /*
+                         * Established that the caller wants type filtering but this (actual) type is neither the
+                         * specified type nor one of its subtypes. It will be skipped.
+                         */
+                        continue;
+                    }
+                    else
+                    {
+                        /*
+                         * Established that the caller wants type filtering and that this (actual) type is either the
+                         * specified type or one of its subtypes. If there is also a list of subtypeGUIDs, need to
+                         * check that if the typeDef is a subtype (ONLY - not the specified type) that it is
+                         * in the entitySubTypeGUIDs list. If it is present, it will be searched. If it is not present it
+                         * will not be searched.
+                         */
+                        if (entitySubtypeGUIDs != null)
+                        {
+                            String actualTypeGUID = typeDef.getGUID();
+                            /*
+                             * Although the repository helper provides a method to get the subtypes it is based on type
+                             * names so rather than convert back and forth between GUIDs and names, it is more straightforward
+                             * to decide if the type is strictly a subtype by comparing the typeGUID against the specified
+                             * type's GUID.
+                             */
+                            if (!actualTypeGUID.equals(entityTypeGUID))
+                            {
+                                /*
+                                 * The actual type is a strict subtype of the specified type. Check it is in the list,
+                                 * otherwise skip it.
+                                 */
+                                if (!entitySubtypeGUIDs.contains(actualTypeGUID))
+                                {
+                                    /*
+                                     * This subtype is not in the list, skip it
+                                     */
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                /*
+                 * Invoke a type specific search. The search will expect the regexp to match fully to the value.
+                 */
+                List<EntityDetail> entitiesForCurrentType = graphStore.findEntities(actualTypeName, matchProperties, true);
+
+                if (entitiesForCurrentType != null && !entitiesForCurrentType.isEmpty())
+                {
+                    if (returnEntities == null)
+                    {
+                        returnEntities = new ArrayList<>();
+                    }
+                    log.info("{}: for type {} found {} entities", methodName, typeDef.getName(), entitiesForCurrentType.size());
+                    returnEntities.addAll(entitiesForCurrentType);
+                }
+                else
+                {
+                    log.info("{}: for type {} found no entities", methodName, typeDef.getName());
+                }
+
+            }
+        }
+
+        /*
+         * Eliminate soft deleted entities and apply status and classification filtering if any was requested
+         */
+        if (returnEntities == null)
+        {
+            return null;
+        }
+        else
+        {
+            List<EntityDetail> retainedEntities = new ArrayList<>();
+            for (EntityDetail entity : returnEntities)
+            {
+                if (entity != null)
+                {
+                    if ((entity.getStatus() != InstanceStatus.DELETED)
+                            && (repositoryValidator.verifyInstanceHasRightStatus(limitResultsByStatus, entity))
+                            && (repositoryValidator.verifyMatchingClassifications(matchClassifications, entity)))
+                    {
+                        retainedEntities.add(entity);
+                    }
+                }
+            }
+
+            return repositoryHelper.formatEntityResults(retainedEntities, fromEntityElement, sequencingProperty, sequencingOrder, pageSize);
+        }
+
+
+    }
+
+
+    /**
+     * Return a list of relationships that match the requested conditions.  The results can be received as a series of
+     * pages.
+     *
+     * @param userId unique identifier for requesting user.
+     * @param relationshipTypeGUID unique identifier (guid) for the relationship's type.  Null means all types
+     *                             (but may be slow so not recommended).
+     * @param relationshipSubtypeGUIDs optional list of the unique identifiers (guids) for subtypes of the
+     *                                 relationshipTypeGUID to include in the search results. Null means all subtypes.
+     * @param matchProperties Optional list of relationship property conditions to match.
+     * @param fromRelationshipElement the starting element number of the entities to return.
+     *                                This is used when retrieving elements
+     *                                beyond the first page of results. Zero means start from the first element.
+     * @param limitResultsByStatus By default, relationships in all statuses are returned.  However, it is possible
+     *                             to specify a list of statuses (eg ACTIVE) to restrict the results to.  Null means all
+     *                             status values.
+     * @param asOfTime Requests a historical query of the relationships for the entity.  Null means return the
+     *                 present values.
+     * @param sequencingProperty String name of the property that is to be used to sequence the results.
+     *                           Null means do not sequence on a property name (see SequencingOrder).
+     * @param sequencingOrder Enum defining how the results should be ordered.
+     * @param pageSize the maximum number of result relationships that can be returned on this request.  Zero means
+     *                 unrestricted return results size.
+     * @return a list of relationships.  Null means no matching relationships.
+     * @throws InvalidParameterException one of the parameters is invalid or null.
+     * @throws TypeErrorException the type guid passed on the request is not known by the
+     *                              metadata collection.
+     * @throws RepositoryErrorException there is a problem communicating with the metadata repository where
+     *                                    the metadata collection is stored.
+     * @throws PropertyErrorException the properties specified are not valid for any of the requested types of
+     *                                  relationships.
+     * @throws PagingErrorException the paging/sequencing parameters are set up incorrectly.
+     * @throws FunctionNotSupportedException the repository does not support one of the provided parameters.
+     * @throws UserNotAuthorizedException the userId is not permitted to perform this operation.
+     * @see OMRSRepositoryHelper#getExactMatchRegex(String)
+     */
+    @Override
+    public  List<Relationship> findRelationships(String                    userId,
+                                                 String                    relationshipTypeGUID,
+                                                 List<String>              relationshipSubtypeGUIDs,
+                                                 SearchProperties          matchProperties,
+                                                 int                       fromRelationshipElement,
+                                                 List<InstanceStatus>      limitResultsByStatus,
+                                                 Date                      asOfTime,
+                                                 String                    sequencingProperty,
+                                                 SequencingOrder           sequencingOrder,
+                                                 int                       pageSize)
+
+    throws InvalidParameterException,
+           TypeErrorException,
+           RepositoryErrorException,
+           PropertyErrorException,
+           PagingErrorException,
+           FunctionNotSupportedException,
+           UserNotAuthorizedException
+    {
+
+        final String methodName = "findRelationships";
+        final String relationshipTypeGUIDParameterName = "relationshipTypeGUID";
+
+
+        /*
+         * Validate parameters
+         */
+        super.findRelationshipsParameterValidation(userId,
+                                                   relationshipTypeGUID,
+                                                   relationshipSubtypeGUIDs,
+                                                   matchProperties,
+                                                   fromRelationshipElement,
+                                                   limitResultsByStatus,
+                                                   asOfTime,
+                                                   sequencingProperty,
+                                                   sequencingOrder,
+                                                   pageSize);
+
+
+        /*
+         * Perform operation
+         */
+
+        if (asOfTime != null)
+        {
+            log.error("{} does not support asOfTime searches", methodName);
+
+            super.reportUnsupportedOptionalFunction(methodName);
+        }
+
+
+        /*
+         * Perform operation
+         */
+
+        ArrayList<Relationship> returnRelationships = null;
+
+
+        String specifiedTypeName = null;
+        if (relationshipTypeGUID != null)
+        {
+            TypeDef typeDef = repositoryHelper.getTypeDef(repositoryName, relationshipTypeGUIDParameterName, relationshipTypeGUID, methodName);
+            specifiedTypeName = typeDef.getName();
+        }
+
+        TypeDefGallery activeTypes = repositoryHelper.getActiveTypeDefGallery();
+        List<TypeDef> allTypeDefs = activeTypes.getTypeDefs();
+
+        for (TypeDef typeDef : allTypeDefs)
+        {
+            if (typeDef.getCategory() == TypeDefCategory.RELATIONSHIP_DEF)
+            {
+
+                String actualTypeName = typeDef.getName();
+
+                /*
+                 * If relationshipTypeGUID parameter is not null there is an expected type, so check whether the
+                 * current type matches the expected type or is one of its sub-types.
+                 */
+                if (specifiedTypeName != null)
+                {
+
+                    boolean typeMatch = repositoryHelper.isTypeOf(metadataCollectionId, actualTypeName, specifiedTypeName);
+                    if (!typeMatch)
+                    {
+                        /*
+                         * Established that the caller wants type filtering but this (actual) type is neither the
+                         * specified type nor one of its subtypes. It will be skipped.
+                         */
+                        continue;
+                    }
+                    else
+                    {
+                        /*
+                         * Established that the caller wants type filtering and that this (actual) type is either the
+                         * specified type or one of its subtypes. If there is also a list of subtype GUIDs, need to
+                         * check that if the typeDef is a subtype (ONLY - not the specified type) that it is
+                         * in the relationshipSubtypeGUIDs list. If it is present, it will be searched. If it is not present it
+                         * will not be searched.
+                         */
+                        if (relationshipSubtypeGUIDs != null)
+                        {
+                            String actualTypeGUID = typeDef.getGUID();
+                            /*
+                             * Although the repository helper provides a method to get the subtypes it is based on type
+                             * names so rather than convert back and forth between GUIDs and names, it is more straightforward
+                             * to decide if the type is strictly a subtype by comparing the typeGUID against the specified
+                             * type's GUID.
+                             */
+                            if (!actualTypeGUID.equals(relationshipTypeGUID))
+                            {
+                                /*
+                                 * The actual type is a strict subtype of the specified type. Check it is in the list,
+                                 * otherwise skip it.
+                                 */
+                                if (!relationshipSubtypeGUIDs.contains(actualTypeGUID))
+                                {
+                                    /*
+                                     * This subtype is not in the list, skip it
+                                     */
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                /*
+                 * Invoke a type specific search. The search will expect the regexp to match fully to the value.
+                 */
+                List<Relationship> relationshipsForCurrentType = graphStore.findRelationships(actualTypeName, matchProperties, true);
+
+                if (relationshipsForCurrentType != null && !relationshipsForCurrentType.isEmpty())
+                {
+                    if (returnRelationships == null)
+                    {
+                        returnRelationships = new ArrayList<>();
+                    }
+                    log.info("{}: for type {} found {} relationships", methodName, typeDef.getName(), relationshipsForCurrentType.size());
+                    returnRelationships.addAll(relationshipsForCurrentType);
+                }
+                else
+                {
+                    log.info("{}: for type {} found no relationships", methodName, typeDef.getName());
+                }
+
+            }
+        }
+
+        /*
+         * Eliminate soft deleted relationships and apply status filtering if any was requested
+         */
+        if (returnRelationships == null)
+        {
+            return null;
+        }
+        else
+        {
+            List<Relationship> retainedRelationships = new ArrayList<>();
+            for (Relationship relationship : returnRelationships)
+            {
+                if (relationship != null)
+                {
+                    if ( (relationship.getStatus() != InstanceStatus.DELETED)
+                            && (repositoryValidator.verifyInstanceHasRightStatus(limitResultsByStatus, relationship))
+                            )
+                    {
+                        retainedRelationships.add(relationship);
+                    }
+                }
+            }
+
+            return repositoryHelper.formatRelationshipResults(retainedRelationships, fromRelationshipElement, sequencingProperty, sequencingOrder, pageSize);
+        }
+
+
+    }
+
+
+
 
     // classifyEntity
     public EntityDetail classifyEntity(String               userId,
@@ -1729,7 +2165,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
 
         }
         catch (EntityProxyOnlyException | EntityNotKnownException e) {
-            log.error("{} entity wth GUID {} not found or only a proxy", methodName, entityGUID);
+            log.warn("{} entity wth GUID {} not found or only a proxy", methodName, entityGUID);
 
             throw new EntityNotKnownException(OMRSErrorCode.ENTITY_NOT_KNOWN.getMessageDefinition(entityGUID, methodName, repositoryName),
                     this.getClass().getName(),
@@ -1764,6 +2200,8 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
              * Validation complete - build the new classification
              */
             newClassification = repositoryHelper.getNewClassification(repositoryName,
+                    null,
+                    InstanceProvenanceType.LOCAL_COHORT,
                     userId,
                     classificationName,
                     entityType.getTypeDefName(),
@@ -1797,6 +2235,134 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
     }
 
 
+    // classifyEntity
+    public   EntityDetail classifyEntity(String               userId,
+                                         String               entityGUID,
+                                         String               classificationName,
+                                         String               externalSourceGUID,
+                                         String               externalSourceName,
+                                         ClassificationOrigin classificationOrigin,
+                                         String               classificationOriginGUID,
+                                         InstanceProperties   classificationProperties)
+            throws InvalidParameterException,
+                   RepositoryErrorException,
+                   EntityNotKnownException,
+                   ClassificationErrorException,
+                   PropertyErrorException,
+                   UserNotAuthorizedException,
+                   FunctionNotSupportedException
+    {
+        final String  methodName = "classifyEntity (detailed)";
+        final String  entityGUIDParameterName     = "entityGUID";
+        final String  classificationParameterName = "classificationName";
+        final String  propertiesParameterName     = "classificationProperties";
+
+        /*
+         * Validate parameters
+         */
+        this.validateRepositoryConnector(methodName);
+        parentConnector.validateRepositoryIsActive(methodName);
+
+        repositoryValidator.validateUserId(repositoryName, userId, methodName);
+        repositoryValidator.validateGUID(repositoryName, entityGUIDParameterName, entityGUID, methodName);
+
+        /*
+         * Locate entity - only interested in a non-proxy entity
+         */
+        EntityDetail entity;
+        try {
+
+            entity = graphStore.getEntityDetailFromStore(entityGUID);
+
+        }
+        catch (EntityProxyOnlyException | EntityNotKnownException e) {
+            log.warn("{} entity wth GUID {} not found or only a proxy", methodName, entityGUID);
+
+            throw new EntityNotKnownException(OMRSErrorCode.ENTITY_NOT_KNOWN.getMessageDefinition(entityGUID, methodName, repositoryName),
+                           this.getClass().getName(),
+                           methodName,
+                           e);
+
+        }
+        catch (RepositoryErrorException e) {
+            log.error("{} repository exception during retrieval of entity wth GUID {}", methodName, entityGUID);
+            throw e;
+        }
+
+        repositoryValidator.validateEntityFromStore(repositoryName, entityGUID, entity, methodName);
+        repositoryValidator.validateEntityIsNotDeleted(repositoryName, entity, methodName);
+
+        repositoryValidator.validateInstanceType(repositoryName, entity);
+
+        InstanceType entityType = entity.getType();
+
+        repositoryValidator.validateClassification(repositoryName, classificationParameterName, classificationName, entityType.getTypeDefName(), methodName);
+
+        Classification newClassification;
+        try
+        {
+            repositoryValidator.validateClassificationProperties(repositoryName,
+                        classificationName,
+                        propertiesParameterName,
+                        classificationProperties,
+                        methodName);
+
+            /*
+             * Validation complete - build the new classification
+             */
+            if (externalSourceGUID == null)
+            {
+                newClassification = repositoryHelper.getNewClassification(repositoryName,
+                         null,
+                         InstanceProvenanceType.LOCAL_COHORT,
+                         userId,
+                         classificationName,
+                         entityType.getTypeDefName(),
+                         classificationOrigin,
+                         classificationOriginGUID,
+                         classificationProperties);
+            }
+            else
+            {
+                newClassification = repositoryHelper.getNewClassification(repositoryName,
+                         externalSourceGUID,
+                         InstanceProvenanceType.EXTERNAL_SOURCE,
+                         userId,
+                         classificationName,
+                         entityType.getTypeDefName(),
+                         classificationOrigin,
+                         classificationOriginGUID,
+                         classificationProperties);
+                newClassification.setMetadataCollectionName(externalSourceName);
+                newClassification.setReplicatedBy(metadataCollectionId);
+            }
+        }
+        catch (PropertyErrorException  error)
+        {
+            throw error;
+        }
+        catch (Throwable   error)
+        {
+            throw new ClassificationErrorException(OMRSErrorCode.INVALID_CLASSIFICATION_FOR_ENTITY.getMessageDefinition(),
+                         this.getClass().getName(),
+                         methodName,
+                         error);
+        }
+
+        /*
+         * Validation complete - ok to update entity
+         */
+
+        EntityDetail updatedEntity = repositoryHelper.addClassificationToEntity(repositoryName, entity, newClassification, methodName);
+
+        updatedEntity = repositoryHelper.incrementVersion(userId, entity, updatedEntity);
+
+        graphStore.updateEntityInStore(updatedEntity);
+
+        return updatedEntity;
+    }
+
+
     // declassifyEntity
     public EntityDetail declassifyEntity(String  userId,
                                          String  entityGUID,
@@ -1813,7 +2379,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
         /*
          * Validate parameters
          */
-        super.declassifyEntityParameterValidation(userId, entityGUID, classificationName);
+        super.declassifyEntityParameterValidation(userId, entityGUID, classificationName, methodName);
 
         /*
          * Locate entity - only interested in a non-proxy entity
@@ -1825,7 +2391,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
 
         }
         catch (EntityProxyOnlyException | EntityNotKnownException e) {
-            log.error("{} entity wth GUID {} not found or only a proxy", methodName, entityGUID);
+            log.warn("{} entity wth GUID {} not found or only a proxy", methodName, entityGUID);
 
             throw new EntityNotKnownException(OMRSErrorCode.ENTITY_PROXY_ONLY.getMessageDefinition(methodName,
                                                                                                    this.getClass().getName(),
@@ -2007,14 +2573,23 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
             repositoryValidator.validateEntityFromStore(repositoryName, obsoleteEntityGUID, entityDetail, methodName);
 
         }
-        catch (EntityProxyOnlyException | EntityNotKnownException e) {
+        catch (EntityProxyOnlyException e) {
 
-            log.error("{} entity wth GUID {} not found or only a proxy", methodName, obsoleteEntityGUID);
+            log.warn("{} entity wth GUID {} only a proxy", methodName, obsoleteEntityGUID);
 
             throw new EntityNotKnownException(OMRSErrorCode.ENTITY_NOT_KNOWN.getMessageDefinition(obsoleteEntityGUID, methodName, repositoryName),
                     this.getClass().getName(),
                     methodName,
                     e);
+        }
+        catch (EntityNotKnownException e) {
+
+            log.error("{} entity wth GUID {} not found", methodName, obsoleteEntityGUID);
+
+            throw new EntityNotKnownException(OMRSErrorCode.ENTITY_NOT_KNOWN.getMessageDefinition(obsoleteEntityGUID, methodName, repositoryName),
+                                              this.getClass().getName(),
+                                              methodName,
+                                              e);
         }
 
         repositoryValidator.validateTypeForInstanceDelete(repositoryName, typeDefGUID, typeDefName, entityDetail, methodName);
@@ -2103,7 +2678,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
 
         }
         catch (EntityProxyOnlyException e) {
-            log.error("{} entity wth GUID {} only a proxy", methodName, deletedEntityGUID);
+            log.warn("{} entity wth GUID {} only a proxy", methodName, deletedEntityGUID);
 
             throw new EntityNotKnownException(OMRSErrorCode.ENTITY_NOT_KNOWN.getMessageDefinition(deletedEntityGUID, methodName, repositoryName),
                     this.getClass().getName(),
@@ -2252,7 +2827,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
             repositoryValidator.validateEntityFromStore(repositoryName, entityGUID, entity, methodName);
         }
         catch (EntityProxyOnlyException e) {
-            log.error("{} entity wth GUID {} only a proxy", methodName, entityGUID);
+            log.warn("{} entity wth GUID {} only a proxy", methodName, entityGUID);
 
             throw new EntityNotKnownException(OMRSErrorCode.ENTITY_NOT_KNOWN.getMessageDefinition(entityGUID, methodName, repositoryName),
                     this.getClass().getName(),
@@ -2322,7 +2897,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
 
         }
         catch (EntityProxyOnlyException e) {
-            log.error("{} entity wth GUID {} only a proxy", methodName, entityGUID);
+            log.warn("{} entity wth GUID {} only a proxy", methodName, entityGUID);
 
             throw new EntityNotKnownException(OMRSErrorCode.ENTITY_NOT_KNOWN.getMessageDefinition(entityGUID, methodName, repositoryName),
                     this.getClass().getName(),
@@ -2408,7 +2983,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
                     methodName);
         }
         catch (EntityProxyOnlyException e) {
-            log.error("{} entity wth GUID {} only a proxy", methodName, entityGUID);
+            log.warn("{} entity wth GUID {} only a proxy", methodName, entityGUID);
 
             throw new EntityNotKnownException(OMRSErrorCode.ENTITY_NOT_KNOWN.getMessageDefinition(entityGUID, methodName, repositoryName),
                     this.getClass().getName(),
@@ -2639,7 +3214,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
             
         }
         catch (EntityProxyOnlyException e) {
-            log.error("{} entity wth GUID {} only a proxy", methodName, entityGUID);
+            log.warn("{} entity wth GUID {} only a proxy", methodName, entityGUID);
 
             throw new EntityNotKnownException(OMRSErrorCode.ENTITY_NOT_KNOWN.getMessageDefinition(entityGUID, methodName, repositoryName),
                     this.getClass().getName(),
@@ -2706,6 +3281,54 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
     }
 
 
+    public List<Classification> getHomeClassifications(String userId,
+                                                       String entityGUID)
+            throws InvalidParameterException,
+                   RepositoryErrorException,
+                   EntityNotKnownException,
+                   UserNotAuthorizedException,
+                   FunctionNotSupportedException
+    {
+        final String  methodName = "getHomeClassifications";
+
+        this.validateRepositoryConnector(methodName);
+        parentConnector.validateRepositoryIsActive(methodName);
+
+        EntityDetail retrievedEntity = null;
+        try {
+            retrievedEntity = graphStore.getEntityDetailFromStore(entityGUID);
+        }
+        catch (EntityProxyOnlyException | EntityNotKnownException e) {
+            log.debug("{} entity wth GUID {} not known or only a proxy", methodName, entityGUID);
+        }
+
+        List<Classification> homeClassifications = new ArrayList<>();
+
+        if (retrievedEntity != null) {
+            List<Classification> retrievedClassifications = retrievedEntity.getClassifications();
+
+            if (retrievedClassifications != null) {
+                for (Classification retrievedClassification : retrievedClassifications) {
+                    if (retrievedClassification != null) {
+                        if (metadataCollectionId.equals(retrievedClassification.getMetadataCollectionId())) {
+                            /*
+                             * Locally homed classification
+                             */
+                            homeClassifications.add(retrievedClassification);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (homeClassifications.isEmpty()) {
+            return null;
+        }
+
+        return homeClassifications;
+    }
+
+
     /*
      * Removal of proxy entities: if a proxy entity existed prior to the ref copy being saved, it was replaced by the
      * ref copy - so when we now purge the ref copy there is no need to remove any proxy - it has already been subsumed.
@@ -2743,7 +3366,7 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
             entity = graphStore.getEntityDetailFromStore(entityGUID);
         }
         catch (EntityProxyOnlyException e) {
-            log.error("{} entity wth GUID {} only a proxy", methodName, entityGUID);
+            log.warn("{} entity wth GUID {} only a proxy", methodName, entityGUID);
 
             throw new EntityNotKnownException(OMRSErrorCode.ENTITY_NOT_KNOWN.getMessageDefinition(entityGUID, methodName, repositoryName),
                     this.getClass().getName(),
@@ -2760,6 +3383,144 @@ public class GraphOMRSMetadataCollection extends OMRSDynamicTypeMetadataCollecti
             super.reportEntityNotKnown(entityGUID, methodName);
         }
     }
+
+
+    public void saveClassificationReferenceCopy(String         userId,
+                                                EntityDetail   entity,
+                                                Classification classification)
+            throws InvalidParameterException,
+                   RepositoryErrorException,
+                   TypeErrorException,
+                   EntityConflictException,
+                   InvalidEntityException,
+                   PropertyErrorException,
+                   UserNotAuthorizedException,
+                   FunctionNotSupportedException
+    {
+        final String  methodName = "saveClassificationReferenceCopy";
+        final String  classificationParameterName = "classification";
+        final String  propertiesParameterName = "classification.getProperties()";
+
+        this.validateRepositoryConnector(methodName);
+        parentConnector.validateRepositoryIsActive(methodName);
+
+        EntityDetail retrievedEntity = null;
+        try {
+            retrievedEntity = graphStore.getEntityDetailFromStore(entity.getGUID());
+        }
+        catch (EntityProxyOnlyException | EntityNotKnownException e) {
+            log.debug("{} entity wth GUID {} not known or only a proxy", methodName, entity.getGUID());
+        }
+
+        if ((retrievedEntity == null) && (!metadataCollectionId.equals(entity.getMetadataCollectionId()))) {
+            /*
+             * If the entity is a reference copy then it can be stored in the repository.
+             */
+            retrievedEntity = entity;
+        }
+
+        if (retrievedEntity != null) {
+            try {
+                repositoryValidator.validateEntityFromStore(repositoryName, entity.getGUID(), retrievedEntity, methodName);
+                repositoryValidator.validateEntityIsNotDeleted(repositoryName, retrievedEntity, methodName);
+
+                repositoryValidator.validateInstanceType(repositoryName, entity);
+
+                InstanceType entityType = entity.getType();
+
+                repositoryValidator.validateClassification(repositoryName,
+                                                           classificationParameterName,
+                                                           classification.getName(),
+                                                           entityType.getTypeDefName(),
+                                                           methodName);
+
+                repositoryValidator.validateClassificationProperties(repositoryName,
+                                                                     classification.getName(),
+                                                                     propertiesParameterName,
+                                                                     classification.getProperties(),
+                                                                     methodName);
+
+                /*
+                 * Validation complete - ok to update entity
+                 */
+
+                EntityDetail updatedEntity = repositoryHelper.addClassificationToEntity(repositoryName,
+                                                                                        retrievedEntity,
+                                                                                        classification,
+                                                                                        methodName);
+
+                if (metadataCollectionId.equals(entity.getMetadataCollectionId())) {
+                    updatedEntity = repositoryHelper.incrementVersion(userId, retrievedEntity, updatedEntity);
+                    graphStore.updateEntityInStore(updatedEntity);
+                }
+                else {
+                    graphStore.saveEntityReferenceCopyToStore(entity);
+                }
+            }
+            catch (EntityNotKnownException  error) {
+                // Ignore since the entity has been removed since the classification was added
+            }
+            catch (ClassificationErrorException error) {
+                throw new TypeErrorException(error);
+            }
+        }
+    }
+
+
+
+    public  void purgeClassificationReferenceCopy(String         userId,
+                                                  EntityDetail   entity,
+                                                  Classification classification)
+            throws InvalidParameterException,
+                   TypeErrorException,
+                   PropertyErrorException,
+                   EntityConflictException,
+                   InvalidEntityException,
+                   RepositoryErrorException,
+                   UserNotAuthorizedException,
+                   FunctionNotSupportedException
+    {
+        final String methodName = "purgeClassificationReferenceCopy";
+
+        this.validateRepositoryConnector(methodName);
+        parentConnector.validateRepositoryIsActive(methodName);
+
+        EntityDetail retrievedEntity = null;
+        try {
+            retrievedEntity = graphStore.getEntityDetailFromStore(entity.getGUID());
+        }
+        catch (EntityProxyOnlyException | EntityNotKnownException e) {
+            log.debug("{} entity wth GUID {} not known or only a proxy", methodName, entity.getGUID());
+        }
+
+        if ((retrievedEntity == null) && (!metadataCollectionId.equals(entity.getMetadataCollectionId()))) {
+            /*
+             * If the entity is a reference copy then it can be stored in the repository.
+             */
+            retrievedEntity = entity;
+        }
+
+        if (retrievedEntity != null) {
+            try {
+                EntityDetail updatedEntity = repositoryHelper.deleteClassificationFromEntity(repositoryName,
+                                                                                             entity,
+                                                                                             classification.getName(),
+                                                                                             methodName);
+
+                if (metadataCollectionId.equals(entity.getMetadataCollectionId())) {
+                    updatedEntity = repositoryHelper.incrementVersion(userId, retrievedEntity, updatedEntity);
+                    graphStore.updateEntityInStore(updatedEntity);
+                }
+                else {
+                    graphStore.saveEntityReferenceCopyToStore(entity);
+                }
+            }
+            catch (ClassificationErrorException error) {
+                throw new TypeErrorException(error);
+            }
+        }
+    }
+
 
 
     public void saveRelationshipReferenceCopy(String         userId,

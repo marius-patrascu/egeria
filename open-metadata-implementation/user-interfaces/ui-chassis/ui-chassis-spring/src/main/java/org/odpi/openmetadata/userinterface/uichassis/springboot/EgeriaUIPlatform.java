@@ -4,14 +4,13 @@ package org.odpi.openmetadata.userinterface.uichassis.springboot;
 
 import org.odpi.openmetadata.accessservices.assetcatalog.AssetCatalog;
 import org.odpi.openmetadata.accessservices.glossaryview.client.GlossaryViewClient;
-import org.odpi.openmetadata.accessservices.subjectarea.SubjectArea;
-import org.odpi.openmetadata.accessservices.subjectarea.client.SubjectAreaImpl;
-import org.odpi.openmetadata.accessservices.subjectarea.ffdc.exceptions.InvalidParameterException;
 import org.odpi.openmetadata.governanceservers.openlineage.client.OpenLineageClient;
 import org.odpi.openmetadata.http.HttpHelper;
 import org.odpi.openmetadata.userinterface.uichassis.springboot.auth.AuthService;
 import org.odpi.openmetadata.userinterface.uichassis.springboot.auth.SessionAuthService;
 import org.odpi.openmetadata.userinterface.uichassis.springboot.auth.TokenAuthService;
+import org.odpi.openmetadata.userinterface.uichassis.springboot.service.ComponentService;
+import org.odpi.openmetadata.userinterface.uichassis.springboot.service.LineageGraphDisplayRulesService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.InitializingBean;
@@ -19,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.netflix.zuul.EnableZuulProxy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -31,6 +31,7 @@ import javax.annotation.PostConstruct;
 @SpringBootApplication
 @ComponentScan({"org.odpi.openmetadata.*"})
 @Configuration
+@EnableConfigurationProperties({ComponentService.class, LineageGraphDisplayRulesService.class})
 public class EgeriaUIPlatform {
 
     private static final Logger LOG = LoggerFactory.getLogger(EgeriaUIPlatform.class);
@@ -60,12 +61,6 @@ public class EgeriaUIPlatform {
     public AssetCatalog getAssetCatalog(@Value("${omas.server.url}") String serverUrl,
                                         @Value("${omas.server.name}") String serverName) throws org.odpi.openmetadata.frameworks.connectors.ffdc.InvalidParameterException {
         return new AssetCatalog(serverName, serverUrl);
-    }
-
-    @Bean
-    public SubjectArea getSubjectArea(@Value("${omas.server.url}") String serverUrl,
-                                      @Value("${omas.server.name}") String serverName) throws InvalidParameterException {
-        return new SubjectAreaImpl(serverName, serverUrl);
     }
 
     @Bean

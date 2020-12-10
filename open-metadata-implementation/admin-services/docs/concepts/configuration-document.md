@@ -14,7 +14,7 @@ configuration properties for each of its desired capabilities.
 
 Figure 1 provides more details.
 
-![Figure 1](configuration-document-structure.png)
+![Figure 1](configuration-document-structure.png#pagewidth)
 > **Figure 1:** Structure of the configuration document
 
 
@@ -69,8 +69,9 @@ do not affect existing definitions in the configuration document.
 * [Configuring Start up Archives](../user/configuring-the-startup-archives.md)
 * [Configuring Repository Proxy](../user/configuring-the-repository-proxy-connector.md)
 * [Configuring discovery engine properties](../user/configuring-the-discovery-engine-services.md)
-* [Configuring security sync services](../user/configuring-the-security-sync-services.md)
+* [Configuring integration services](../user/configuring-the-integration-services.md)
 * [Configuring stewardship engine services](../user/configuring-the-stewardship-engine-services.md)
+* [Configuring view services](../user/configuring-the-view-services.md)
 
 ### Audit Trail
 

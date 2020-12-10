@@ -9,11 +9,12 @@ import { RequestContext }                      from "../../contexts/RequestConte
 import ServerConfigServicesDisplay             from "./ServerConfigServicesDisplay";
 import ServerConfigEventBusDisplay             from "./ServerConfigEventBusDisplay";
 import ServerConfigRepositoryServicesDisplay   from "./ServerConfigRepositoryServicesDisplay";
-import ServerConfigAuditTrailDisplay           from "./ServerConfigAuditTrailDisplay";
 import ServerServicesDisplay                   from "./ServerServicesDisplay";
 import ServerCohortsDisplay                    from "./ServerCohortsDisplay";
 import ServerStatusDisplay                     from "./ServerStatusDisplay";
 import AuditLogHandler                         from "./AuditLogHandler";
+import ConfigLogHandler                        from "./ConfigLogHandler";
+
 
 
 import "./details-panel.scss";
@@ -57,6 +58,8 @@ export default function ServerDisplay() {
   const [auditLog, setAuditLog]             = useState({});
 
 
+  const [configLogStatus, setConfigLogStatus] = useState("idle");
+  const [configLog, setConfigLog]             = useState({});
 
   /*
    * Handler for flopping a collapsible
@@ -135,6 +138,22 @@ export default function ServerDisplay() {
     }
   };
 
+  /*
+   * Ensure the config section is visible, without issuing a request
+   */
+  const makeVisibleConfigSection = () => {
+
+    /*
+     * Find the section using its DOM id
+     */
+    const element = document.getElementById("configSection");
+    const content = element.nextElementSibling;
+    if (content.style.display !== "block") {
+      content.style.display = "block";
+      element.classList.toggle("active");
+    }
+  };
+
 
   /*
    * Handler for change to includeAuditTrail checkbox
@@ -143,22 +162,7 @@ export default function ServerDisplay() {
     setIncAuditTrailOption(!incAuditTrailOption);
   }
 
-  /* 
-   * Always accept the operation name because operation name is needed even in the case where json is null
-   */
-  const reportFailedOperation = (operation, json) => {
-    if (json !== null) {      
-      const relatedHTTPCode = json.relatedHTTPCode;
-      const exceptionMessage = json.exceptionErrorMessage;
-      /*
-       * TODO - could be changed to cross-UI means of user notification... for now rely on alerts
-       */
-      alert("Operation "+operation+" failed with status "+relatedHTTPCode+" and message "+exceptionMessage);
-    }
-    else {
-      alert("Operation "+operation+" did not get a response from the view server");
-    }
-  }
+
 
   const getServerAuditLog = () => {
     let server = resourcesContext.getFocusServer();
@@ -185,7 +189,7 @@ export default function ServerDisplay() {
         requestContext.callPOST("server", serverName,  "server/"+serverName+"/audit-log", 
             { serverName : serverName, platformName : platformName }, _getServerAuditLog);
         setAuditLogStatus("pending");
-        
+
       }
       else {
         /*
@@ -199,10 +203,12 @@ export default function ServerDisplay() {
   const _getServerAuditLog = (json) => {
     if (json !== null) {
       if (json.relatedHTTPCode === 200 ) {
-        let auditLog = json.auditLog;
-        setAuditLog(auditLog);
-        setAuditLogStatus("complete");
-        return;
+        if (auditLog) {
+          let auditLog = json.auditLog;
+          setAuditLog(auditLog);
+          setAuditLogStatus("complete");
+          return;
+        }
       }
     }
     /*
@@ -210,6 +216,28 @@ export default function ServerDisplay() {
      */
     reportFailedOperation("getServerAuditLog",json);
   }
+
+  /*
+   * Always accept the operation name because operation name is needed even in the case where json is null
+   */
+  const reportFailedOperation = (operation, json) => {
+    if (json !== null) {
+      const relatedHTTPCode = json.relatedHTTPCode;
+      const exceptionMessage = json.exceptionErrorMessage;
+      /*
+       * TODO - could be changed to cross-UI means of user notification... for now rely on alerts
+       */
+      alert("Operation "+operation+" failed with status "+relatedHTTPCode+" and message "+exceptionMessage);
+    }
+    else {
+      alert("Operation "+operation+" did not get a response from the view server");
+    }
+  }
+
+
+
+
+
 
   const cancelAuditLogModal = () => {
     setAuditLogStatus("idle");
@@ -220,6 +248,22 @@ export default function ServerDisplay() {
   };
 
 
+
+  /*
+   * Handler to render sevrer config audit trail in portal
+   */
+  const displayServerConfigLog = (serverName, configAuditTrail) => {
+    setConfigLog({"serverName" : serverName , "configAuditTrail" : configAuditTrail });
+    setConfigLogStatus("complete");
+  }
+
+  const cancelConfigLogModal = () => {
+    setConfigLogStatus("idle");
+  };
+
+  const submitConfigLogModal = () => {
+    setConfigLogStatus("idle");
+  };
 
   /*
    * It would be possible to specialize the display of a server depending on its server type.
@@ -278,6 +322,15 @@ export default function ServerDisplay() {
     matchingConfigs = true;
     differences = null;
   }
+  if (loading === "loading") {
+    /*
+     * A request has been been made to load the configuration - this
+     * might have come from the twistie and flipConfigSection or it
+     * might have come from the diagram (a right-click menu item).
+     * In either case, make sure the config section is visible.
+     */
+    makeVisibleConfigSection();
+  }
  
   
   /*
@@ -324,28 +377,29 @@ export default function ServerDisplay() {
       <div className="type-details-item-bold">Server Type : </div>
       <div className="type-details-item">{serverDetails.serverClassification.serverTypeName}</div>
       <div className="type-details-item">{serverDetails.serverClassification.serverTypeDescription}</div>
-        
+
       <button className="collapsible" onClick={flipSection}> Services: </button>
       <div className="content">
         <ServerServicesDisplay serverName={serverDetails.serverName} serviceList={serverDetails.serverServicesList}></ServerServicesDisplay>
-      </div>      
+      </div>
       <br/>
 
       <button className="collapsible" onClick={flipSection}> Cohorts: </button>
       <div className="content">
         <ServerCohortsDisplay serverName={serverDetails.serverName} cohortDetails={serverDetails.cohortDetails}></ServerCohortsDisplay>
-      </div>      
+      </div>
       <br/>
 
+
+
       <div>
-      <button className="collapsible" onClick={flipConfigSection}> Server Configuration: </button>
+      <button className="collapsible" id="configSection" onClick={flipConfigSection}> Server Configuration: </button>
         <div className="content">
-          
           <div>
            { (loading === "loading") && <div>Loading...</div>}
           </div>
           <div>
-           { (loading === "loaded") && 
+           { (loading === "loaded") &&
             <div>
 
               <label htmlFor="layoutMode">Display : </label>
@@ -382,9 +436,9 @@ export default function ServerDisplay() {
               <br/>
 
               {
-              displayedConfig && (displayMode === "stored" || displayMode === "active") && 
-              <ul>
-               
+              displayedConfig && (displayMode === "stored" || displayMode === "active") &&
+              <ul className="details-sublist">
+
                 <li>
                   <div className="type-details-item-bold">Local Server Name : </div>
                   <div className="type-details-item">{
@@ -434,7 +488,6 @@ export default function ServerDisplay() {
                     displayedConfig && displayedConfig.viewServicesConfig}></ServerConfigServicesDisplay>
                   </div>
                 </li>
-      
 
                 <li>
                   <button className="collapsible" onClick={flipSection}> Repository Services Configuration: </button>
@@ -443,6 +496,7 @@ export default function ServerDisplay() {
                     displayedConfig && displayedConfig.repositoryServicesConfig}></ServerConfigRepositoryServicesDisplay>
                   </div>
                 </li>
+
                 <li>
                   <button className="collapsible" onClick={flipSection}> Event Bus Configuration: </button>
                   <div className="content">
@@ -452,15 +506,19 @@ export default function ServerDisplay() {
                 </li>
 
                 <li>
-                  <button className="collapsible" onClick={flipSection}> Server Configuration Audit Trail: </button>
-                  <div className="content">
-                    <ServerConfigAuditTrailDisplay trail={
-                    displayedConfig && displayedConfig.auditTrail}></ServerConfigAuditTrailDisplay>
-                  </div>
+                  <button onClick = { () => displayServerConfigLog(serverDetails.serverName, displayedConfig.auditTrail) }>
+                    Server Configuration Audit Trail:
+                  </button>
+
+                  <ConfigLogHandler   status                = { configLogStatus }
+                                      configLog             = { configLog }
+                                      onCancel              = { cancelConfigLogModal }
+                                      onSubmit              = { submitConfigLogModal } />
                 </li>
-      
+
               </ul>
               }
+
               {
                 (displayMode === "diffs") &&
                 <div>
@@ -481,52 +539,61 @@ export default function ServerDisplay() {
                       </div>
 
                       <label htmlFor="incAuditTrail">Include Config Audit Trail entries </label>
-                      <input type="checkbox" 
-                        id="cbIncAuditTrail" 
-                        name="cbIncAuditTrail" 
-                        onChange={updateIncAuditTrailOption} 
-                        checked={ incAuditTrailOption } 
+                      <input type="checkbox"
+                        id="cbIncAuditTrail"
+                        name="cbIncAuditTrail"
+                        onChange={updateIncAuditTrailOption}
+                        checked={ incAuditTrailOption }
                         value={ incAuditTrailOption }  />
 
 
-                      <ul className="type-details-list">     
+                      <ul className="type-details-list">
                         {
-                          Object.keys(differences).map( diff => 
+                          Object.keys(differences).map( diff =>
                             (incAuditTrailOption || diff.split('.')[0] !== "auditTrail") &&
-                            <li className="type-details-item" key={diff}> 
+                            <li className="type-details-item" key={diff}>
                               <div className="div-bold">{diff}</div>
                               <div>Active: {differences[diff].active ? differences[diff].active : <i>blank</i>}</div>
                               <div>Stored: {differences[diff].stored ? differences[diff].stored : <i>blank</i>}</div>
-                            </li>  
+                            </li>
                           )
-                        } 
+                        }
                       </ul>
                     </div>
                   }
                 </div>
               }
+
             </div>}
           </div>
         </div>
       </div>
-      <button className="collapsible" onClick={flipSection}> Server Status Log: </button>
+
+      <button className="collapsible" onClick={flipSection}> Server Status: </button>
       <div className="content">
-        <ServerStatusDisplay serverStatus={serverDetails.serverStatus}></ServerStatusDisplay>
-      </div>      
+        <ServerStatusDisplay serverName={serverDetails.serverName} serverStatus={serverDetails.serverStatus}>
+        </ServerStatusDisplay>
+      </div>
       <br/>
-      
-      <button 
-          onClick = { () => getServerAuditLog(serverDetails.guid) }  >
+
+      <button className="collapsible" onClick={flipSection}> Server Audit Log: </button>
+      <div className="content">
+        <button onClick = { () => getServerAuditLog(serverDetails.guid) }  >
           Server Audit Log
-      </button>
+        </button>
+      </div>
 
       <AuditLogHandler   status                = { auditLogStatus }
                          auditLog              = { auditLog }
                          onCancel              = { cancelAuditLogModal }
                          onSubmit              = { submitAuditLogModal } />
 
+
+
     </div>
   );
+
+
 }
 
 

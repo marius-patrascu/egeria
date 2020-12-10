@@ -3,7 +3,7 @@
 import React, { useState, useContext } from "react";
 import { useHistory } from "react-router-dom";
 import "./Login.css";
-import Egeriacolor from "../images/Egeria_logo_color";
+import Egeriacolor from "../images/odpi/Egeria_logo_color";
 import { IdentificationContext } from "../contexts/IdentificationContext";
 
 import {
@@ -16,21 +16,20 @@ import {
   Button
 } from 'carbon-components-react';
 
-const Login = (props) => {
+const Login = () => {
   const identificationContext = useContext(IdentificationContext);
   const [password, setPassword] = useState("");
   const [userId, setUserId] = useState("");
   const [errorMsg, setErrorMsg] = useState();
   let history = useHistory();
 
-  // }
   const handleOnClick = e => {
     console.log("login handleClick(()");
     e.preventDefault();
     const url = identificationContext.getBrowserURL('login') + "?" + new URLSearchParams({
       username: userId,
       password: password
-    });
+  });
     fetch(url, {
       method: "post",
       headers: {
@@ -40,11 +39,13 @@ const Login = (props) => {
     })
       .then(res => res.json())
       .then(res => {
-        if (res.status == "success") {
+        if (res.status === "success") {
           console.log("login worked " + JSON.stringify(res));
           identificationContext.setUserId(userId);
-          // redirect user to page they were previously on if they refresh or enter an exact URL
-          const path = props.currentURL ? identificationContext.getBrowserURL(props.currentURL) : identificationContext.getBrowserURL(''); 
+          identificationContext.setUser(res.user);
+          identificationContext.setAuthenticated(true);
+          // TODO original url prop. 
+          const path = identificationContext.getBrowserURL(''); 
           history.push(path);
         } else {
           if (res.errno) {
@@ -64,6 +65,7 @@ const Login = (props) => {
     const value = event.target.value;
     sessionStorage.setItem("egeria-userId", value);
     setUserId(value);
+    console.log("handleOnChange :" + value);
   };
 
   const validateForm = () => {
