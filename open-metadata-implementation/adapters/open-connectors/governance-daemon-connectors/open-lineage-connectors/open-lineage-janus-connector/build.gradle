@@ -22,7 +22,7 @@ dependencies {
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'junit:junit'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
-    testRuntimeOnly 'org.janusgraph:janusgraph-inmemory:0.5.2'
+    testRuntimeOnly 'org.janusgraph:janusgraph-inmemory:0.5.3'
     implementation 'com.fasterxml.jackson.core:jackson-annotations'
     implementation 'org.apache.commons:commons-collections4'
 
